@@ -1,0 +1,14 @@
+from building import *
+
+cwd = GetCurrentDir()
+
+# 源文件列表
+src = Glob('*.c')
+src += Glob('OLED/*.c')
+
+# 头文件路径
+path = [cwd, cwd + '/OLED']
+
+group = DefineGroup('IIC', src, depend = [''], CPPPATH = path)
+
+Return('group')
