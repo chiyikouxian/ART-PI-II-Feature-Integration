@@ -74,11 +74,9 @@ if GetDepend(['RT_USING_SPI']):
 #     src += ['STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_iwdg.c']
 #     src += ['STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_wwdg.c']
 
-# if GetDepend(['RT_USING_AUDIO']):
-#     src += ['STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2s.c']
-#     src += ['STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2s_ex.c']
-#     src += ['STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_sai.c']
-#     src += ['STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_sai_ex.c']
+# SAI driver for INMP441 audio capture
+src += ['Src/stm32h7rsxx_hal_sai.c']
+src += ['Src/stm32h7rsxx_hal_sai_ex.c']
 
 # if GetDepend(['RT_USING_MTD_NOR']):
 #     src += ['STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_nor.c']

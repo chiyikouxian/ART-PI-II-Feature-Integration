@@ -389,6 +389,31 @@
               <FileType>1</FileType>
               <FilePath>applications\main.c</FilePath>
             </File>
+            <File>
+              <FileName>audio_capture_thread.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\applications\audio_capture_thread.c</FilePath>
+            </File>
+            <File>
+              <FileName>audio_process.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\applications\audio_process.c</FilePath>
+            </File>
+            <File>
+              <FileName>drv_sai_inmp441.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\applications\drv_sai_inmp441.c</FilePath>
+            </File>
+            <File>
+              <FileName>audio_process.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\applications\audio_process.h</FilePath>
+            </File>
+            <File>
+              <FileName>drv_sai_inmp441.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\applications\drv_sai_inmp441.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -3553,6 +3578,16 @@
               <FileName>stm32h7rsxx_hal_pwr.c</FileName>
               <FileType>1</FileType>
               <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_pwr.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_sai.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_sai.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_sai_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_sai_ex.c</FilePath>
             </File>
           </Files>
         </Group>

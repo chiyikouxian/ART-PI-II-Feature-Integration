@@ -6,12 +6,17 @@
  * Change Logs:
  * Date           Author       Notes
  * 2020-09-02     RT-Thread    first version
+ * 2025-01-27     AI           Added INMP441 audio capture support
  */
 
 #include <rtthread.h>
 #include <rtdevice.h>
 #include "drv_common.h"
 #include "../IIC/iic_thread.h"
+
+/* Audio capture headers */
+#include "drv_sai_inmp441.h"
+#include "audio_process.h"
 
 #ifdef RT_USING_WIFI
 #include <wlan_mgnt.h>
