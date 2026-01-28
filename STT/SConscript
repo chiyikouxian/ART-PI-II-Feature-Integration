@@ -1,0 +1,17 @@
+import rtconfig
+from building import *
+
+cwd = GetCurrentDir()
+
+src = Split('''
+audio_encoder.c
+http_client.c
+stt_baidu.c
+stt_manager.c
+''')
+
+path = [cwd]
+
+group = DefineGroup('STT', src, depend = [''], CPPPATH = path)
+
+Return('group')

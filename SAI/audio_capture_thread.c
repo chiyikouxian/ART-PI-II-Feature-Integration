@@ -15,6 +15,9 @@
 #include "stm32h7rsxx_hal.h"
 #include <math.h>
 
+/* STT语音识别模块 */
+#include "../STT/stt_manager.h"
+
 #define AUDIO_CAPTURE_THREAD_STACK_SIZE     2048
 #define AUDIO_CAPTURE_THREAD_PRIORITY       15
 
@@ -91,24 +94,17 @@ static void print_level_bar(float level, float max_level)
  */
 static void speech_data_callback(audio_recording_t *recording)
 {
+    uint32_t duration_ms = (recording->end_time - recording->start_time) * 1000 / RT_TICK_PER_SECOND;
+
     rt_kprintf("\n=== Speech Segment Captured ===\n");
     rt_kprintf("  Samples: %d\n", recording->size);
-    rt_kprintf("  Duration: %d ms\n",
-               (recording->end_time - recording->start_time) * 1000 / RT_TICK_PER_SECOND);
+    rt_kprintf("  Duration: %d ms\n", duration_ms);
     rt_kprintf("  Sample Rate: %d Hz\n", recording->sample_rate);
     rt_kprintf("================================\n\n");
 
-#ifdef RT_USING_DFS
-    /* Save to file with timestamp */
-    static uint32_t file_count = 0;
-    char filename[64];
-    rt_snprintf(filename, sizeof(filename), "/audio_%03d.wav", file_count++);
-
-    if (audio_save_to_file(recording, filename) == RT_EOK)
-    {
-        rt_kprintf("[AudioCapture] Saved to: %s\n", filename);
-    }
-#endif
+    /* 将录音数据送入STT管理器进行语音识别 */
+    stt_manager_feed_recording(recording->data, recording->size,
+                               recording->sample_rate);
 }
 
 /* ==================== System Functions ==================== */
@@ -973,6 +969,8 @@ static void audio_monitor_entry(void *parameter)
         audio_frame_t frame;
         if (inmp441_read_frame(&frame, 200) == RT_EOK)
         {
+            /* 暂时注释音量条打印，方便调试 */
+#if 0
             float rms = calculate_rms(frame.buffer, frame.size);
             int32_t peak = calculate_peak(frame.buffer, frame.size);
 
@@ -999,7 +997,7 @@ static void audio_monitor_entry(void *parameter)
                 rt_kprintf("\n[SAI] RMS: %d, Peak: %d (%d%%), Frames: %d\n",
                            (int32_t)rms, peak, percent, total_frames);
             }
-
+#endif
             total_frames++;
             rt_free(frame.buffer);
         }
@@ -1103,8 +1101,38 @@ static int audio_auto_init(void)
 
     rt_kprintf("\n[AutoInit] Starting audio capture system...\n");
 
-    /* Auto-start the audio monitor */
-    audio_monitor_start_func();
+    /* 先初始化音频系统 */
+    if (!g_audio_system_initialized)
+    {
+        if (audio_capture_system_init() != RT_EOK)
+        {
+            rt_kprintf("[AutoInit] Audio system init failed\n");
+            return -1;
+        }
+    }
+
+    /* 启动音频采集 */
+    if (!inmp441_is_running())
+    {
+        if (audio_capture_start() != RT_EOK)
+        {
+            rt_kprintf("[AutoInit] Audio capture start failed\n");
+            return -1;
+        }
+    }
+
+    /* 音频系统初始化成功后，再初始化STT管理器 */
+    if (stt_manager_init(RT_NULL) == RT_EOK)
+    {
+        stt_manager_start();
+        rt_kprintf("[AutoInit] STT manager started\n");
+    }
+    else
+    {
+        rt_kprintf("[AutoInit] STT manager init failed\n");
+    }
+
+    rt_kprintf("[AutoInit] System ready - speak to test STT\n");
 
     return 0;
 }
