@@ -389,31 +389,6 @@
               <FileType>1</FileType>
               <FilePath>applications\main.c</FilePath>
             </File>
-            <File>
-              <FileName>audio_capture_thread.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\applications\audio_capture_thread.c</FilePath>
-            </File>
-            <File>
-              <FileName>audio_process.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\applications\audio_process.c</FilePath>
-            </File>
-            <File>
-              <FileName>drv_sai_inmp441.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\applications\drv_sai_inmp441.c</FilePath>
-            </File>
-            <File>
-              <FileName>audio_process.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\applications\audio_process.h</FilePath>
-            </File>
-            <File>
-              <FileName>drv_sai_inmp441.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\applications\drv_sai_inmp441.h</FilePath>
-            </File>
           </Files>
         </Group>
         <Group>
@@ -3823,6 +3798,36 @@
               <FileName>OLED_Data.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\IIC\OLED\OLED_Data.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>SAI</GroupName>
+          <Files>
+            <File>
+              <FileName>audio_capture_thread.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\SAI\audio_capture_thread.c</FilePath>
+            </File>
+            <File>
+              <FileName>audio_process.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\SAI\audio_process.c</FilePath>
+            </File>
+            <File>
+              <FileName>audio_process.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\SAI\audio_process.h</FilePath>
+            </File>
+            <File>
+              <FileName>drv_sai_inmp441.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\SAI\drv_sai_inmp441.c</FilePath>
+            </File>
+            <File>
+              <FileName>drv_sai_inmp441.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\SAI\drv_sai_inmp441.h</FilePath>
             </File>
           </Files>
         </Group>

@@ -6,17 +6,13 @@
  * Change Logs:
  * Date           Author       Notes
  * 2020-09-02     RT-Thread    first version
- * 2025-01-27     AI           Added INMP441 audio capture support
+ * 2025-01-27     AI           Added WiFi and INMP441 audio capture support
  */
 
 #include <rtthread.h>
 #include <rtdevice.h>
 #include "drv_common.h"
 #include "../IIC/iic_thread.h"
-
-/* Audio capture headers */
-#include "drv_sai_inmp441.h"
-#include "audio_process.h"
 
 #ifdef RT_USING_WIFI
 #include <wlan_mgnt.h>
@@ -26,8 +22,8 @@
 
 #define LED_PIN GET_PIN(O, 5)
 
-#define WIFI_SSID "cdut-yb"
-#define WIFI_PASSWORD "cdutyb218"
+#define WIFI_SSID "CMCC-Vm3m"
+#define WIFI_PASSWORD "w3wegscf"
 
 /* WiFi连接状态 */
 static rt_bool_t wifi_connected = RT_FALSE;
@@ -185,6 +181,9 @@ int main(void)
         rt_kprintf("[Main] Failed to create IIC/OLED thread\n");
     }
 
+    /* 注意: SAI/INMP441音频采集模块已移动到SAI文件夹 */
+    /* 音频系统通过INIT_APP_EXPORT自动初始化，无需在此处调用 */
+
     while(count++)
     {
         rt_thread_mdelay(500);
@@ -203,4 +202,3 @@ static int vtor_config(void)
     return 0;
 }
 INIT_BOARD_EXPORT(vtor_config);
-
