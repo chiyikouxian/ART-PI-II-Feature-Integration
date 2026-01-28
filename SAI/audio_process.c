@@ -35,11 +35,38 @@ typedef struct {
     rt_mutex_t lock;                    /* Mutex for state protection */
 } audio_process_ctx_t;
 
+/* ============== Enhanced VAD Context ============== */
+typedef struct {
+    /* 自适应阈值 */
+    float noise_floor;                  /* 噪声底部 (自动校准) */
+    float energy_threshold;             /* 当前能量阈值 */
+
+    /* 能量平滑 */
+    float smoothed_energy;              /* 平滑后的能量 */
+
+    /* 连续检测计数 */
+    uint32_t speech_frame_count;        /* 连续检测到语音的帧数 */
+    uint32_t silence_frame_count;       /* 连续静音帧数 */
+
+    /* 校准状态 */
+    uint32_t calibration_count;         /* 校准帧计数 */
+    rt_bool_t calibrated;               /* 是否已校准 */
+
+    /* 调试信息 */
+    uint32_t last_zcr;                  /* 上一帧过零率 */
+    float last_energy;                  /* 上一帧能量 */
+} vad_context_t;
+
 static audio_process_ctx_t g_audio_ctx = {0};
+static vad_context_t g_vad_ctx = {0};
 
 /* Forward declarations */
 static void audio_process_thread_entry(void *parameter);
 static rt_bool_t vad_detect_speech(audio_frame_t *frame);
+static rt_bool_t vad_detect_speech_enhanced(audio_frame_t *frame);
+static uint32_t vad_calculate_zcr(audio_frame_t *frame);
+static void vad_init(void);
+static void vad_update_noise_floor(float energy);
 
 /**
  * @brief Initialize audio processing module
@@ -55,6 +82,9 @@ rt_err_t audio_process_init(speech_data_callback_t callback)
 
     ctx->callback = callback;
     ctx->state = AUDIO_STATE_IDLE;
+
+    /* Initialize enhanced VAD */
+    vad_init();
 
     /* Create mutex */
     ctx->lock = rt_mutex_create("audio_lock", RT_IPC_FLAG_FIFO);
@@ -205,8 +235,8 @@ static void audio_process_thread_entry(void *parameter)
         if (energy > ctx->stats.max_energy)
             ctx->stats.max_energy = energy;
 
-        /* VAD - Voice Activity Detection */
-        rt_bool_t speech_detected = vad_detect_speech(&frame);
+        /* VAD - Enhanced Voice Activity Detection */
+        rt_bool_t speech_detected = vad_detect_speech_enhanced(&frame);
 
         rt_mutex_take(ctx->lock, RT_WAITING_FOREVER);
 
@@ -330,6 +360,191 @@ static rt_bool_t vad_detect_speech(audio_frame_t *frame)
 {
     uint32_t energy = audio_calculate_energy(frame);
     return (energy > VAD_THRESHOLD);
+}
+
+/* ============== Enhanced VAD Implementation ============== */
+
+/**
+ * @brief Initialize VAD context
+ */
+static void vad_init(void)
+{
+    vad_context_t *vad = &g_vad_ctx;
+
+    rt_memset(vad, 0, sizeof(vad_context_t));
+    vad->noise_floor = VAD_ENERGY_THRESHOLD_INIT;
+    vad->energy_threshold = VAD_ENERGY_THRESHOLD_INIT;
+    vad->smoothed_energy = 0;
+    vad->calibrated = RT_FALSE;
+    vad->calibration_count = 0;
+
+    rt_kprintf("[VAD] Enhanced VAD initialized (adaptive threshold enabled)\n");
+}
+
+/**
+ * @brief Calculate Zero Crossing Rate (过零率)
+ * @note ZCR helps distinguish speech from noise:
+ *       - Speech: moderate ZCR (voiced sounds have low ZCR, unvoiced have high)
+ *       - Noise: typically high and random ZCR
+ *       - Silence: very low ZCR
+ */
+static uint32_t vad_calculate_zcr(audio_frame_t *frame)
+{
+    if (frame == RT_NULL || frame->buffer == RT_NULL || frame->size < 2)
+        return 0;
+
+    uint32_t zcr = 0;
+    int32_t prev_sign = (frame->buffer[0] >= 0) ? 1 : -1;
+
+    for (uint32_t i = 1; i < frame->size; i++)
+    {
+        int32_t curr_sign = (frame->buffer[i] >= 0) ? 1 : -1;
+        if (curr_sign != prev_sign)
+        {
+            zcr++;
+        }
+        prev_sign = curr_sign;
+    }
+
+    return zcr;
+}
+
+/**
+ * @brief Update noise floor estimate (自适应噪声底部)
+ * @note Only update when no speech detected, uses slow adaptation
+ */
+static void vad_update_noise_floor(float energy)
+{
+    vad_context_t *vad = &g_vad_ctx;
+
+#if VAD_ADAPTIVE_ENABLED
+    /* 校准阶段：快速收集噪声样本 */
+    if (!vad->calibrated)
+    {
+        vad->calibration_count++;
+
+        /* 使用较快的更新速度进行初始校准 */
+        if (vad->calibration_count == 1)
+        {
+            vad->noise_floor = energy;
+        }
+        else
+        {
+            vad->noise_floor = vad->noise_floor * 0.9f + energy * 0.1f;
+        }
+
+        if (vad->calibration_count >= VAD_CALIBRATION_FRAMES)
+        {
+            vad->calibrated = RT_TRUE;
+            vad->energy_threshold = vad->noise_floor * VAD_THRESHOLD_RATIO;
+
+            rt_kprintf("[VAD] Calibration complete: noise_floor=%.0f, threshold=%.0f\n",
+                      vad->noise_floor, vad->energy_threshold);
+        }
+        else if (vad->calibration_count % 10 == 0)
+        {
+            /* 每10帧打印一次校准进度 */
+            rt_kprintf("[VAD] Calibrating %d/%d, noise_floor=%.0f\n",
+                      vad->calibration_count, VAD_CALIBRATION_FRAMES, vad->noise_floor);
+        }
+        return;
+    }
+
+    /* 运行阶段：缓慢更新噪声底部 */
+    /* 只有当能量低于当前阈值时才更新（避免语音时错误更新） */
+    if (energy < vad->energy_threshold * 0.5f)
+    {
+        vad->noise_floor = vad->noise_floor * (1.0f - VAD_NOISE_FLOOR_ALPHA)
+                         + energy * VAD_NOISE_FLOOR_ALPHA;
+
+        /* 更新阈值 */
+        vad->energy_threshold = vad->noise_floor * VAD_THRESHOLD_RATIO;
+    }
+#endif
+}
+
+/**
+ * @brief Enhanced Voice Activity Detection (增强版VAD)
+ * @note Combines energy detection, ZCR, and adaptive threshold
+ */
+static rt_bool_t vad_detect_speech_enhanced(audio_frame_t *frame)
+{
+    vad_context_t *vad = &g_vad_ctx;
+
+    /* 计算当前帧能量 */
+    float energy = (float)audio_calculate_energy(frame);
+
+    /* 能量平滑 (减少抖动) */
+    vad->smoothed_energy = vad->smoothed_energy * (1.0f - VAD_ENERGY_SMOOTH_ALPHA)
+                         + energy * VAD_ENERGY_SMOOTH_ALPHA;
+
+    /* 计算过零率 */
+    uint32_t zcr = vad_calculate_zcr(frame);
+    vad->last_zcr = zcr;
+    vad->last_energy = vad->smoothed_energy;
+
+    /* 校准阶段：收集噪声样本，不检测语音 */
+    if (!vad->calibrated)
+    {
+        vad_update_noise_floor(energy);
+        return RT_FALSE;
+    }
+
+    /* ============ 综合判断 ============ */
+
+    rt_bool_t energy_ok = RT_FALSE;
+    rt_bool_t zcr_ok = RT_FALSE;
+
+    /* 条件1: 能量超过自适应阈值 */
+    if (vad->smoothed_energy > vad->energy_threshold)
+    {
+        energy_ok = RT_TRUE;
+    }
+
+    /* 条件2: 过零率在合理范围内 (排除纯噪声) */
+    if (zcr >= VAD_ZCR_MIN && zcr <= VAD_ZCR_MAX)
+    {
+        zcr_ok = RT_TRUE;
+    }
+
+    /* 综合判断：能量OK且过零率OK才认为是语音 */
+    rt_bool_t is_speech = (energy_ok && zcr_ok);
+
+    /* 连续帧计数 (防抖) */
+    if (is_speech)
+    {
+        vad->speech_frame_count++;
+        vad->silence_frame_count = 0;
+    }
+    else
+    {
+        vad->silence_frame_count++;
+        vad->speech_frame_count = 0;
+
+        /* 静音时更新噪声底部 */
+        if (vad->silence_frame_count > 10)
+        {
+            vad_update_noise_floor(energy);
+        }
+    }
+
+    /* 需要连续检测到多帧语音才确认 */
+    if (vad->speech_frame_count >= VAD_MIN_SPEECH_FRAMES)
+    {
+        return RT_TRUE;
+    }
+
+    /* 每50帧打印一次调试信息 */
+    static uint32_t debug_counter = 0;
+    if (++debug_counter >= 50)
+    {
+        debug_counter = 0;
+        rt_kprintf("[VAD] E=%d T=%d ZCR=%d | energy_ok=%d zcr_ok=%d\n",
+                  (int)vad->smoothed_energy, (int)vad->energy_threshold, zcr,
+                  energy_ok, zcr_ok);
+    }
+
+    return RT_FALSE;
 }
 
 /**

@@ -306,12 +306,31 @@ static void process_dma_data(int32_t *src, uint32_t sample_count)
     }
 
     audio_frame_t *frame = &dev->frames[dev->write_idx];
-    uint32_t copy_size = (sample_count < AUDIO_FRAME_SIZE) ? sample_count : AUDIO_FRAME_SIZE;
 
-    /* INMP441 data is 24-bit left-aligned in 32-bit word */
+    /*
+     * SAI is configured in STEREO mode, data format: [L, R, L, R, ...]
+     * INMP441 L/R pin = GND: outputs on LEFT channel (index 0, 2, 4, ...)
+     *
+     * Debug: print both channels to see which one has data
+     */
+    uint32_t mono_count = sample_count / 2;  /* Half the samples after extracting mono */
+    uint32_t copy_size = (mono_count < AUDIO_FRAME_SIZE) ? mono_count : AUDIO_FRAME_SIZE;
+
+    /* Debug: check both channels */
+    if (debug_print_counter % 100 == 1)
+    {
+        rt_kprintf("  L[0]=0x%08X R[0]=0x%08X L[1]=0x%08X R[1]=0x%08X\n",
+                   (uint32_t)src[0], (uint32_t)src[1],
+                   (uint32_t)src[2], (uint32_t)src[3]);
+    }
+
+    /* INMP441 L/R=GND: Extract LEFT channel (src[0], src[2], src[4], ...)
+     * INMP441输出24-bit数据左对齐在32-bit中
+     * 右移8位得到24-bit有符号值，保留足够的动态范围
+     */
     for (uint32_t i = 0; i < copy_size; i++)
     {
-        frame->buffer[i] = src[i] >> 8;
+        frame->buffer[i] = src[i * 2] >> 8;  /* 右移8位: 保留24-bit动态范围 */
     }
 
     frame->size = copy_size;

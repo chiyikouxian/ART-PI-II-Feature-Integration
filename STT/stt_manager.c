@@ -152,8 +152,8 @@ static void stt_thread_entry(void *parameter)
             if (ctx->callback)
                 ctx->callback(result.text);
 
-            /* 显示一段时间 */
-            rt_thread_mdelay(3000);
+            /* 缩短显示时间，尽快处理下一段 */
+            rt_thread_mdelay(500);
         }
         else
         {
@@ -164,10 +164,17 @@ static void stt_thread_entry(void *parameter)
                        "ERR:%d", result.err_no);
             ctx->result_updated = RT_TRUE;
 
-            rt_thread_mdelay(2000);
+            rt_thread_mdelay(500);
         }
 
         ctx->state = STT_STATE_IDLE;
+
+        /* 检查是否有新的录音等待处理 */
+        if (ctx->data_ready)
+        {
+            rt_kprintf("[STT] New recording available, processing...\n");
+            rt_mb_send(ctx->mbox, STT_MSG_NEW_RECORDING);
+        }
     }
 
     rt_kprintf("[STT] Thread exited\n");
@@ -257,6 +264,8 @@ const char *stt_manager_get_last_text(void)
  * 注意: 此函数直接保存指针，不复制数据。
  * audio_process在下次录音前不会修改这块内存，所以是安全的。
  * STT线程会在编码完成后释放对这块内存的引用。
+ *
+ * 改进: 即使STT忙也更新指针，这样至少处理最新的录音而不是丢弃
  */
 void stt_manager_feed_recording(const int32_t *pcm32, uint32_t samples,
                                 uint32_t sample_rate)
@@ -266,19 +275,22 @@ void stt_manager_feed_recording(const int32_t *pcm32, uint32_t samples,
     if (!ctx->running)
         return;
 
-    /* 如果STT线程还在处理上一段，丢弃 */
-    if (ctx->state != STT_STATE_IDLE)
-    {
-        rt_kprintf("[STT] Busy, dropping recording\n");
-        return;
-    }
-
     rt_mutex_take(ctx->lock, RT_WAITING_FOREVER);
+
+    /* 总是更新指针到最新录音 */
     ctx->pcm_ptr = pcm32;
     ctx->pcm_samples = samples;
     ctx->data_ready = RT_TRUE;
+
     rt_mutex_release(ctx->lock);
 
-    /* 通知STT线程 */
-    rt_mb_send(ctx->mbox, STT_MSG_NEW_RECORDING);
+    /* 如果STT线程空闲，发送通知；否则等它处理完后会检查data_ready */
+    if (ctx->state == STT_STATE_IDLE)
+    {
+        rt_mb_send(ctx->mbox, STT_MSG_NEW_RECORDING);
+    }
+    else
+    {
+        rt_kprintf("[STT] Busy, will process latest when ready\n");
+    }
 }

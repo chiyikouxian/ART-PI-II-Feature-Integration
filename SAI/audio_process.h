@@ -17,10 +17,33 @@
 #define AUDIO_PROCESS_STACK_SIZE        2048
 #define AUDIO_PROCESS_PRIORITY          10
 
-/* VAD (Voice Activity Detection) Configuration */
-#define VAD_THRESHOLD                   10000000    /* Energy threshold for speech detection */
-#define VAD_HANGOVER_FRAMES             15          /* Frames to keep after speech ends */
-#define VAD_MIN_RECORD_MS               300         /* Minimum recording duration (ms) */
+/* ============== Enhanced VAD Configuration ============== */
+/*
+ * 增强版VAD算法 - 结合能量检测、过零率(ZCR)和自适应阈值
+ * 参考Silero VAD思想，适配MCU资源限制
+ */
+
+/* 能量检测参数 */
+#define VAD_ENERGY_THRESHOLD_INIT       5000000     /* 初始能量阈值 */
+#define VAD_ENERGY_SMOOTH_ALPHA         0.3f        /* 能量平滑系数 (0-1, 越小越平滑) */
+
+/* 过零率(ZCR)参数 - 区分语音和噪声 */
+#define VAD_ZCR_MIN                     5           /* 最小过零率 (每帧) - 低于此为静音 */
+#define VAD_ZCR_MAX                     500         /* 最大过零率 (每帧) - 高于此为噪声 */
+
+/* 自适应阈值参数 */
+#define VAD_ADAPTIVE_ENABLED            1           /* 启用自适应阈值 */
+#define VAD_NOISE_FLOOR_ALPHA           0.05f       /* 噪声底部更新系数 (越小越稳定) */
+#define VAD_THRESHOLD_RATIO             1.5f        /* 阈值 = 噪声底部 × 此倍数 */
+#define VAD_CALIBRATION_FRAMES          50          /* 启动时校准帧数 */
+
+/* 时间参数 */
+#define VAD_HANGOVER_FRAMES             20          /* 静音后保持录音的帧数 */
+#define VAD_MIN_RECORD_MS               300         /* 最小有效录音时长(ms) */
+#define VAD_MIN_SPEECH_FRAMES           3           /* 连续检测到语音才开始录音 */
+
+/* 兼容旧参数 */
+#define VAD_THRESHOLD                   VAD_ENERGY_THRESHOLD_INIT
 
 /* Audio Processing State */
 typedef enum {
