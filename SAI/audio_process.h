@@ -18,8 +18,9 @@
 #define AUDIO_PROCESS_PRIORITY          10
 
 /* VAD (Voice Activity Detection) Configuration */
-#define VAD_THRESHOLD                   1000        /* Energy threshold for speech detection */
-#define VAD_HANGOVER_FRAMES             10          /* Frames to keep after speech ends */
+#define VAD_THRESHOLD                   10000000    /* Energy threshold for speech detection */
+#define VAD_HANGOVER_FRAMES             15          /* Frames to keep after speech ends */
+#define VAD_MIN_RECORD_MS               300         /* Minimum recording duration (ms) */
 
 /* Audio Processing State */
 typedef enum {

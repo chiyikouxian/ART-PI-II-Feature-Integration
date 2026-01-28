@@ -64,8 +64,8 @@ rt_err_t audio_process_init(speech_data_callback_t callback)
         return -RT_ENOMEM;
     }
 
-    /* Allocate recording buffer (max 3 seconds at 16kHz) */
-    ctx->recording.capacity = INMP441_SAMPLE_RATE * 3;  /* 3 seconds = 192KB */
+    /* Allocate recording buffer (max 1.5 seconds at 16kHz to save memory for WAV encoding) */
+    ctx->recording.capacity = INMP441_SAMPLE_RATE * 3 / 2;  /* 1.5 seconds = 24000 samples */
     uint32_t buffer_size = ctx->recording.capacity * sizeof(int32_t);
 
     rt_kprintf("[AudioProcess] Allocating %d bytes (%d KB) for recording buffer\n",
@@ -219,6 +219,7 @@ static void audio_process_thread_entry(void *parameter)
                     ctx->state = AUDIO_STATE_RECORDING;
                     ctx->recording.size = 0;
                     ctx->recording.start_time = rt_tick_get();
+                    ctx->vad_hangover_count = VAD_HANGOVER_FRAMES;  /* Initialize hangover */
 
                     rt_kprintf("[AudioProcess] Speech detected - Recording started\n");
 
@@ -277,6 +278,16 @@ finish_recording:
                         ctx->recording.end_time = rt_tick_get();
 
                         uint32_t duration_ms = (ctx->recording.end_time - ctx->recording.start_time) * 1000 / RT_TICK_PER_SECOND;
+
+                        /* Check minimum recording duration */
+                        if (duration_ms < VAD_MIN_RECORD_MS)
+                        {
+                            rt_kprintf("[AudioProcess] Recording too short (%d ms), discarding\n", duration_ms);
+                            ctx->state = AUDIO_STATE_IDLE;
+                            ctx->recording.size = 0;
+                            break;
+                        }
+
                         ctx->stats.total_duration_ms += duration_ms;
                         ctx->stats.speech_detected++;
 

@@ -3831,6 +3831,56 @@
             </File>
           </Files>
         </Group>
+        <Group>
+          <GroupName>STT</GroupName>
+          <Files>
+            <File>
+              <FileName>audio_encoder.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\STT\audio_encoder.c</FilePath>
+            </File>
+            <File>
+              <FileName>audio_encoder.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\STT\audio_encoder.h</FilePath>
+            </File>
+            <File>
+              <FileName>http_client.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\STT\http_client.c</FilePath>
+            </File>
+            <File>
+              <FileName>http_client.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\STT\http_client.h</FilePath>
+            </File>
+            <File>
+              <FileName>stt_baidu.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\STT\stt_baidu.c</FilePath>
+            </File>
+            <File>
+              <FileName>stt_baidu.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\STT\stt_baidu.h</FilePath>
+            </File>
+            <File>
+              <FileName>stt_config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\STT\stt_config.h</FilePath>
+            </File>
+            <File>
+              <FileName>stt_manager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\STT\stt_manager.c</FilePath>
+            </File>
+            <File>
+              <FileName>stt_manager.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\STT\stt_manager.h</FilePath>
+            </File>
+          </Files>
+        </Group>
       </Groups>
     </Target>
   </Targets>
