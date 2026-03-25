@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}注册 - 手套数据采集系统{% endblock %}
+
+{% block content %}
+<div class="layui-row">
+    <div class="layui-col-md4 layui-col-md-offset4">
+        <div class="card" style="margin-top: 50px;">
+            <div class="card-title">用户注册</div>
+            <form class="layui-form" action="{{ url_for('auth.register') }}" method="post">
+                <div class="layui-form-item">
+                    <label class="layui-form-label">用户名</label>
+                    <div class="layui-input-block">
+                        <input type="text" name="username" required
+                               placeholder="请输入用户名"
+                               autocomplete="username"
+                               class="layui-input">
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">邮箱</label>
+                    <div class="layui-input-block">
+                        <input type="email" name="email" required
+                               placeholder="请输入邮箱"
+                               autocomplete="email"
+                               class="layui-input">
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">密码</label>
+                    <div class="layui-input-block">
+                        <input type="password" name="password" required
+                               placeholder="请输入密码"
+                               autocomplete="new-password"
+                               class="layui-input">
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <div class="layui-input-block">
+                        <button class="layui-btn" type="submit">注册</button>
+                        <a href="{{ url_for('auth.login') }}" class="layui-btn layui-btn-primary">返回登录</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

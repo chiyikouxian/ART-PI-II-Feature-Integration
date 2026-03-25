@@ -1,0 +1,74 @@
+# Build output
+build/
+*.o
+*.d
+*.axf
+*.bin
+*.hex
+*.map
+*.lst
+*.dep
+*.htm
+*.lnp
+*.crf
+*.tra
+
+# Keil MDK
+Objects/
+Listings/
+DebugConfig/
+RTE/
+*.uvguix.*
+*.scvd
+JLinkLog.txt
+EventRecorderStub.scvd
+
+# RT-Thread kernel & libraries (use pkgs --update to restore)
+art_pi2_left/rt-thread/
+art_pi2_left/libraries/
+art_pi2_left/packages/
+art_pi2_right/rt-thread/
+art_pi2_right/libraries/
+art_pi2_right/packages/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+*.egg
+.venv/
+venv/
+env/
+
+# Flask instance (database, runtime config)
+leading_end/instance/
+
+# Three.js dev source (large)
+leading_end/three.js-dev/
+
+# Layui framework (CDN/manually managed)
+leading_end/static/layui-v2.13.3/
+
+# SQLite database
+*.db
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Migrations (auto-generated)
+leading_end/migrations/
+
+# STM32CubeMX backup
+*.ioc.bak

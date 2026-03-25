@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(py:*)",
+      "Bash(pip install:*)",
+      "Bash(cmd.exe /c \"cd /d d:\\\\PPPRRROOOJJJEEECCCTTT\\\\2026qiansai\\\\leading_end && python --version\")",
+      "Bash(cmd.exe /c \"python --version && pip --version\")",
+      "Bash(powershell.exe -Command \"python --version; pip --version\")",
+      "Bash(powershell.exe -Command \"python --version\")",
+      "Bash(powershell.exe -Command \"py --version\")",
+      "Bash(/c/Users/*/AppData/Local/Programs/Python/Python*/python.exe)",
+      "Bash(/c/Python*/python.exe)",
+      "Bash(/c/Users/26057/AppData/Local/Programs/Python/Python311/python.exe --version)",
+      "Bash(/c/Users/26057/AppData/Local/Microsoft/WindowsApps/python3.exe:*)",
+      "Bash(cmd.exe //c \"pip install Flask Flask-SQLAlchemy Flask-Migrate Flask-Login python-dotenv Werkzeug\")",
+      "Bash(cmd.exe //c \"python -m pip install Flask Flask-SQLAlchemy Flask-Migrate Flask-Login python-dotenv Werkzeug\")",
+      "Bash(cmd.exe //c \"py -3 -m pip install Flask Flask-SQLAlchemy Flask-Migrate Flask-Login python-dotenv Werkzeug\")",
+      "Bash(cmd.exe //c \"py -3 run.py\")",
+      "Bash(python run.py)",
+      "Bash(python -c \":*)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //F //PID 9296)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:5000/static/models/hand_set.glb)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:5000/static/js/three/three.module.min.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:5000/static/js/three/addons/loaders/GLTFLoader.js)"
+    ]
+  }
+}

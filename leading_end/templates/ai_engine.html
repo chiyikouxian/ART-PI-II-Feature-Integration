@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{% block title %}AI引擎管理 - 手套数据采集系统{% endblock %}
+
+{% block content %}
+<div class="layui-row layui-col-space15">
+    <div class="layui-col-md12">
+        <div class="card">
+            <div class="card-title">AI引擎管理 - 第三方大模型服务接入</div>
+
+            <div style="margin-bottom: 15px;">
+                <button class="layui-btn layui-btn-sm" id="btn-add-engine">
+                    <i class="layui-icon layui-icon-add-1"></i> 新增引擎
+                </button>
+                <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh">
+                    <i class="layui-icon layui-icon-refresh"></i> 刷新
+                </button>
+            </div>
+
+            <table class="layui-table" id="engine-table" lay-filter="engineTable"></table>
+        </div>
+    </div>
+</div>
+
+<!-- 操作栏模板 -->
+<script type="text/html" id="engineBarTpl">
+    <a class="layui-btn layui-btn-xs" lay-event="edit">
+        <i class="layui-icon layui-icon-edit"></i> 编辑
+    </a>
+    <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="test">
+        <i class="layui-icon layui-icon-link"></i> 测试
+    </a>
+    <a class="layui-btn layui-btn-xs layui-btn-warm" lay-event="chat">
+        <i class="layui-icon layui-icon-dialogue"></i> 对话
+    </a>
+    <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">
+        <i class="layui-icon layui-icon-delete"></i> 删除
+    </a>
+</script>
+
+<!-- 状态开关模板 -->
+<script type="text/html" id="activeSwitchTpl">
+    <input type="checkbox" name="is_active" value="{% raw %}{{d.id}}{% endraw %}"
+           lay-skin="switch" lay-text="启用|停用" lay-filter="activeSwitch"
+           {% raw %}{{ d.is_active ? 'checked' : '' }}{% endraw %}>
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+layui.use(['table', 'layer', 'form'], function() {
+    var table = layui.table;
+    var layer = layui.layer;
+    var form = layui.form;
+
+    // 渲染引擎管理表格
+    table.render({
+        elem: '#engine-table',
+        id: 'engineTableId',
+        url: '/api/ai-engine/list',
+        cols: [[
+            {field: 'name', title: '服务商名称', minWidth: 120},
+            {field: 'api_url', title: 'API地址', minWidth: 200},
+            {field: 'api_key', title: 'API密钥', width: 130},
+            {field: 'model_name', title: '模型名称', minWidth: 140},
+            {field: 'is_active', title: '状态', width: 100, templet: '#activeSwitchTpl'},
+            {field: 'created_at', title: '创建时间', width: 150},
+            {title: '操作', width: 280, toolbar: '#engineBarTpl'}
+        ]],
+        page: false,
+        text: { none: '暂无AI引擎配置，请点击"新增引擎"添加' }
+    });
+
+    // 监听状态开关
+    form.on('switch(activeSwitch)', function(obj) {
+        var engineId = parseInt(this.value);
+        var isActive = obj.elem.checked;
+        fetch('/api/ai-engine/update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id: engineId, is_active: isActive})
+        }).then(function(res){ return res.json(); })
+          .then(function(data) {
+            if (data.code === 0) {
+                layer.msg(isActive ? '已启用' : '已停用');
+            } else {
+                layer.msg(data.msg, {icon: 2});
+                obj.elem.checked = !isActive;
+                form.render('checkbox');
+            }
+        });
+    });
+
+    // 构建表单HTML
+    function buildFormHtml(defaults) {
+        var d = defaults || {};
+        return '<div style="padding: 20px 20px 0;">' +
+            '<form class="layui-form" lay-filter="engineForm">' +
+            '<div class="layui-form-item">' +
+            '  <label class="layui-form-label" style="width:100px;">服务商名称</label>' +
+            '  <div class="layui-input-block" style="margin-left:130px;"><input type="text" name="name" value="' + (d.name || '') + '" class="layui-input" placeholder="如：OpenAI、智谱AI、百度文心" required></div>' +
+            '</div>' +
+            '<div class="layui-form-item">' +
+            '  <label class="layui-form-label" style="width:100px;">API地址</label>' +
+            '  <div class="layui-input-block" style="margin-left:130px;"><input type="text" name="api_url" value="' + (d.api_url || '') + '" class="layui-input" placeholder="如：https://api.openai.com/v1" required></div>' +
+            '</div>' +
+            '<div class="layui-form-item">' +
+            '  <label class="layui-form-label" style="width:100px;">API密钥</label>' +
+            '  <div class="layui-input-block" style="margin-left:130px;"><input type="text" name="api_key" value="' + (d.api_key || '') + '" class="layui-input" placeholder="填写完整的API Key" required></div>' +
+            '</div>' +
+            '<div class="layui-form-item">' +
+            '  <label class="layui-form-label" style="width:100px;">模型名称</label>' +
+            '  <div class="layui-input-block" style="margin-left:130px;"><input type="text" name="model_name" value="' + (d.model_name || '') + '" class="layui-input" placeholder="如：gpt-4o、glm-4、ernie-4.0" required></div>' +
+            '</div>' +
+            '<div class="layui-form-item">' +
+            '  <div class="layui-input-block" style="margin-left:130px;"><button class="layui-btn" lay-submit lay-filter="saveEngine">保存</button></div>' +
+            '</div>' +
+            '</form></div>';
+    }
+
+    // 监听工具栏事件
+    table.on('tool(engineTable)', function(obj) {
+        var data = obj.data;
+
+        if (obj.event === 'edit') {
+            layer.open({
+                type: 1,
+                title: '编辑AI引擎 - ' + data.name,
+                area: ['520px', '370px'],
+                content: buildFormHtml(data),
+                success: function(layero, index) {
+                    form.render(null, 'engineForm');
+                    form.on('submit(saveEngine)', function(formData) {
+                        fetch('/api/ai-engine/update', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                id: data.id,
+                                name: formData.field.name,
+                                api_url: formData.field.api_url,
+                                api_key: formData.field.api_key,
+                                model_name: formData.field.model_name
+                            })
+                        }).then(function(res){ return res.json(); })
+                          .then(function(resp) {
+                            if (resp.code === 0) {
+                                layer.close(index);
+                                table.reloadData('engineTableId');
+                                layer.msg('更新成功');
+                            } else {
+                                layer.msg(resp.msg, {icon: 2});
+                            }
+                        });
+                        return false;
+                    });
+                }
+            });
+        }
+        else if (obj.event === 'test') {
+            var loadIdx = layer.load(1, {shade: [0.3, '#000']});
+            fetch('/api/ai-engine/test', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: data.id})
+            }).then(function(res){ return res.json(); })
+              .then(function(resp) {
+                layer.close(loadIdx);
+                if (resp.code === 0) {
+                    layer.msg('连接成功', {icon: 1});
+                } else {
+                    layer.msg(resp.msg, {icon: 2});
+                }
+            }).catch(function() {
+                layer.close(loadIdx);
+                layer.msg('请求失败', {icon: 2});
+            });
+        }
+        else if (obj.event === 'chat') {
+            openChatDialog(data);
+        }
+        else if (obj.event === 'del') {
+            layer.confirm('确定删除引擎「' + data.name + '」吗？', {icon: 3, title: '提示'}, function(index) {
+                fetch('/api/ai-engine/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({id: data.id})
+                }).then(function(res){ return res.json(); })
+                  .then(function(resp) {
+                    if (resp.code === 0) {
+                        obj.del();
+                        layer.close(index);
+                        layer.msg('删除成功');
+                    } else {
+                        layer.msg(resp.msg, {icon: 2});
+                    }
+                });
+            });
+        }
+    });
+
+    // 新增引擎
+    document.getElementById('btn-add-engine').addEventListener('click', function() {
+        layer.open({
+            type: 1,
+            title: '新增AI引擎',
+            area: ['520px', '370px'],
+            content: buildFormHtml(),
+            success: function(layero, index) {
+                form.render(null, 'engineForm');
+                form.on('submit(saveEngine)', function(formData) {
+                    fetch('/api/ai-engine/add', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            name: formData.field.name,
+                            api_url: formData.field.api_url,
+                            api_key: formData.field.api_key,
+                            model_name: formData.field.model_name
+                        })
+                    }).then(function(res){ return res.json(); })
+                      .then(function(resp) {
+                        if (resp.code === 0) {
+                            layer.close(index);
+                            table.reloadData('engineTableId');
+                            layer.msg('添加成功');
+                        } else {
+                            layer.msg(resp.msg, {icon: 2});
+                        }
+                    });
+                    return false;
+                });
+            }
+        });
+    });
+
+    // 刷新按钮
+    document.getElementById('btn-refresh').addEventListener('click', function() {
+        table.reloadData('engineTableId');
+    });
+
+    // ========== 对话测试 ==========
+    function openChatDialog(engineData) {
+        var messages = [];
+        var chatHtml =
+            '<div style="display:flex;flex-direction:column;height:100%;">' +
+            '  <div id="chatMessages" style="flex:1;overflow-y:auto;padding:16px;background:#f5f5f5;">' +
+            '    <div style="text-align:center;color:#999;font-size:13px;padding:20px 0;">开始与 ' + engineData.name + ' / ' + engineData.model_name + ' 对话</div>' +
+            '  </div>' +
+            '  <div style="display:flex;align-items:center;padding:12px 16px;border-top:1px solid #e6e6e6;background:#fff;flex-shrink:0;">' +
+            '    <input type="text" id="chatInput" class="layui-input" placeholder="输入消息..." style="flex:1;margin-right:10px;">' +
+            '    <button class="layui-btn" id="chatSendBtn">发送</button>' +
+            '  </div>' +
+            '</div>';
+
+        layer.open({
+            type: 1,
+            title: '对话测试 - ' + engineData.name + ' / ' + engineData.model_name,
+            area: ['700px', '500px'],
+            content: chatHtml,
+            success: function(layero, index) {
+                var msgBox = layero.find('#chatMessages')[0];
+                var input = layero.find('#chatInput')[0];
+                var sendBtn = layero.find('#chatSendBtn')[0];
+
+                function appendMsg(role, text) {
+                    var isUser = (role === 'user');
+                    var div = document.createElement('div');
+                    div.style.cssText = 'display:flex;margin-bottom:12px;' + (isUser ? 'justify-content:flex-end;' : 'justify-content:flex-start;');
+                    var bubble = document.createElement('div');
+                    bubble.style.cssText = 'max-width:75%;padding:10px 14px;border-radius:10px;font-size:14px;line-height:1.6;word-break:break-all;white-space:pre-wrap;' +
+                        (isUser ? 'background:#1e9fff;color:#fff;border-bottom-right-radius:2px;' : 'background:#fff;color:#333;border:1px solid #e6e6e6;border-bottom-left-radius:2px;');
+                    bubble.textContent = text;
+                    div.appendChild(bubble);
+                    msgBox.appendChild(div);
+                    msgBox.scrollTop = msgBox.scrollHeight;
+                    return bubble;
+                }
+
+                function doSend() {
+                    var text = input.value.trim();
+                    if (!text) return;
+
+                    appendMsg('user', text);
+                    messages.push({role: 'user', content: text});
+                    input.value = '';
+                    sendBtn.disabled = true;
+                    sendBtn.className = 'layui-btn layui-btn-disabled';
+                    sendBtn.textContent = '思考中...';
+
+                    var thinkingBubble = appendMsg('assistant', '...');
+
+                    fetch('/api/ai-engine/chat', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({id: engineData.id, messages: messages})
+                    }).then(function(res){ return res.json(); })
+                      .then(function(resp) {
+                        if (resp.code === 0) {
+                            thinkingBubble.textContent = resp.msg;
+                            messages.push({role: 'assistant', content: resp.msg});
+                        } else {
+                            thinkingBubble.textContent = '[错误] ' + resp.msg;
+                            thinkingBubble.style.color = '#ff5722';
+                        }
+                        msgBox.scrollTop = msgBox.scrollHeight;
+                    }).catch(function() {
+                        thinkingBubble.textContent = '[请求失败]';
+                        thinkingBubble.style.color = '#ff5722';
+                    }).finally(function() {
+                        sendBtn.disabled = false;
+                        sendBtn.className = 'layui-btn';
+                        sendBtn.textContent = '发送';
+                        input.focus();
+                    });
+                }
+
+                sendBtn.addEventListener('click', doSend);
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        doSend();
+                    }
+                });
+                input.focus();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

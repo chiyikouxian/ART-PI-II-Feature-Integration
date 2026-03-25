@@ -1,0 +1,468 @@
+/**
+ * 全局样式
+ */
+
+/* 基础样式重置 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Microsoft YaHei', sans-serif;
+    background-color: #f5f5f5;
+    min-height: 100vh;
+}
+
+/* 布局容器 */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* 头部导航 */
+.header {
+    background: #1e9fff;
+    color: #fff;
+    padding: 15px 20px;
+}
+
+.header .logo {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+/* Logo 区域：图片 + 文字一行显示 */
+.layui-logo {
+    width: auto !important;
+    max-width: 600px;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: visible;
+    padding: 0 15px;
+    display: flex !important;
+    align-items: center;
+    height: 60px;
+}
+
+.header-logo {
+    height: 40px;
+    width: auto;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.header-title {
+    line-height: 60px;
+}
+
+/* 侧边栏左移以适配更宽的 logo */
+.layui-layout-admin .layui-side {
+    left: 0;
+}
+
+/* 底部：确保长文字一行显示 */
+.layui-footer {
+    white-space: nowrap;
+    text-align: center;
+    font-size: 13px;
+}
+
+/* 侧边栏 */
+.sidebar {
+    width: 200px;
+    background: #393d49;
+    min-height: calc(100vh - 60px);
+}
+
+/* 主内容区 */
+.main-content {
+    flex: 1;
+    padding: 20px;
+    background: #fff;
+}
+
+/* 卡片样式 */
+.card {
+    background: #fff;
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.card-title {
+    font-size: 18px;
+    color: #333;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+/* 数据展示区 */
+.data-display {
+    padding: 15px;
+    background: #f8f8f8;
+    border-radius: 4px;
+}
+
+/* 表单样式 */
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 5px;
+    color: #666;
+}
+
+/* 按钮样式 */
+.btn-primary {
+    background: #1e9fff;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-primary:hover {
+    background: #0d8cf0;
+}
+
+/* 消息提示 */
+.alert {
+    padding: 12px 15px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.alert-success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.alert-error {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* ====== 登录页面样式 - 分屏布局 ====== */
+.login-body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    background: #f0f2f5;
+}
+
+.login-split-wrapper {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* 左侧品牌面板 */
+.login-left-panel {
+    flex: 1;
+    background: linear-gradient(160deg, #1a2332 0%, #0d3b3b 50%, #1a4040 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 40px 50px;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+}
+
+.login-left-panel::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -30%;
+    width: 80%;
+    height: 200%;
+    background: radial-gradient(ellipse, rgba(0, 210, 180, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.login-left-content {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+/* Logo 品牌 */
+.login-brand {
+    display: flex;
+    align-items: center;
+    margin-bottom: 60px;
+}
+
+.login-brand-logo {
+    height: 42px;
+    width: auto;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.login-brand-name {
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: 1px;
+}
+
+/* 主标语 */
+.login-slogan {
+    margin-bottom: 24px;
+}
+
+.login-slogan h1 {
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1.3;
+    margin: 0;
+    color: #fff;
+}
+
+.login-slogan-highlight {
+    color: #00bfa5 !important;
+}
+
+.login-slogan-desc {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.6);
+    line-height: 1.7;
+    margin-bottom: 50px;
+    max-width: 420px;
+}
+
+/* 特性列表 */
+.login-features {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.login-feature-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.login-feature-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(0, 191, 165, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.login-feature-icon .layui-icon {
+    font-size: 20px;
+    color: #00bfa5;
+}
+
+.login-feature-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.login-feature-text strong {
+    font-size: 15px;
+    color: #fff;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.login-feature-text span {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* 左侧底部 */
+.login-left-footer {
+    position: relative;
+    z-index: 1;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 13px;
+}
+
+/* 右侧登录面板 */
+.login-right-panel {
+    width: 520px;
+    flex-shrink: 0;
+    background: #f0f2f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+}
+
+.login-form-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+    padding: 48px 40px 36px;
+    width: 100%;
+    max-width: 420px;
+}
+
+.login-form-header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.login-form-header h2 {
+    font-size: 26px;
+    color: #1a1a1a;
+    font-weight: 700;
+    margin: 0 0 8px;
+}
+
+.login-form-header p {
+    font-size: 14px;
+    color: #999;
+    margin: 0;
+}
+
+/* 表单字段 */
+.login-field {
+    margin-bottom: 20px;
+}
+
+.login-field-label {
+    display: block;
+    font-size: 14px;
+    color: #333;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.login-required {
+    color: #ff4d4f;
+    margin-right: 4px;
+}
+
+.login-form-card .layui-input {
+    height: 44px;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+}
+
+.login-form-card .layui-input:focus {
+    border-color: #00bfa5;
+}
+
+/* 记住我 & 忘记密码 */
+.login-options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.login-remember {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    color: #666;
+}
+
+.login-forgot {
+    font-size: 13px;
+    color: #ff4d7a;
+    text-decoration: none;
+}
+
+.login-forgot:hover {
+    text-decoration: underline;
+    color: #ff4d7a;
+}
+
+/* 登录按钮 */
+.login-submit-btn {
+    height: 46px !important;
+    font-size: 16px !important;
+    border-radius: 8px !important;
+    letter-spacing: 4px;
+    background: linear-gradient(135deg, #00bfa5, #00d4aa) !important;
+    border: none !important;
+    transition: opacity 0.2s;
+}
+
+.login-submit-btn:hover {
+    opacity: 0.9;
+    background: linear-gradient(135deg, #00a98e, #00c49a) !important;
+}
+
+/* 底部链接 */
+.login-footer-links {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 14px;
+    color: #999;
+}
+
+.login-footer-links a {
+    color: #00bfa5;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.login-footer-links a:hover {
+    text-decoration: underline;
+}
+
+/* 右上角 Logo */
+.corner-logo {
+    height: 36px;
+    width: auto;
+}
+
+.corner-logo-item {
+    display: flex !important;
+    align-items: center;
+    padding: 0 15px !important;
+}
+
+.login-corner-logo {
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    z-index: 999;
+    height: 40px;
+    width: auto;
+}
+
+/* 响应式适配 */
+@media screen and (max-width: 960px) {
+    .login-split-wrapper {
+        flex-direction: column;
+    }
+    .login-left-panel {
+        padding: 30px;
+        min-height: auto;
+    }
+    .login-slogan h1 {
+        font-size: 28px;
+    }
+    .login-brand {
+        margin-bottom: 30px;
+    }
+    .login-slogan-desc {
+        margin-bottom: 30px;
+    }
+    .login-right-panel {
+        width: 100%;
+        padding: 30px 20px;
+    }
+}

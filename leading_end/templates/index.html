@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - 手套数据采集系统{% endblock %}
+
+{% block content %}
+<div class="layui-row layui-col-space15">
+    <div class="layui-col-md12">
+        <div class="card">
+            <div class="card-title">欢迎使用手套数据采集系统</div>
+            <div class="layui-row layui-col-space15">
+                <div class="layui-col-md4">
+                    <div class="layui-card">
+                        <div class="layui-card-header">数据采集</div>
+                        <div class="layui-card-body">
+                            <p>实时采集手套传感器数据，支持多种采样率配置。</p>
+                            <button class="layui-btn" id="btn-start-collect">开始采集</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="layui-col-md4">
+                    <div class="layui-card">
+                        <div class="layui-card-header">手势识别</div>
+                        <div class="layui-card-body">
+                            <p>基于采集数据进行手势识别和分析。</p>
+                            <button class="layui-btn layui-btn-normal">开始识别</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="layui-col-md4">
+                    <div class="layui-card">
+                        <div class="layui-card-header">数据分析</div>
+                        <div class="layui-card-body">
+                            <p>查看历史数据，进行统计分析。</p>
+                            <a href="{{ url_for('main.real_time_translate') }}" class="layui-btn layui-btn-warm">查看仪表盘</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="layui-row layui-col-space15">
+    <div class="layui-col-md12">
+        <div class="card">
+            <div class="card-title">实时数据</div>
+            <div id="realtime-data" class="data-display">
+                <p>等待数据采集...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+layui.use(['layer'], function() {
+    var layer = layui.layer;
+
+    document.getElementById('btn-start-collect').addEventListener('click', function() {
+        gloveManager.startCollection();
+        layer.msg('数据采集已启动');
+    });
+});
+</script>
+{% endblock %}

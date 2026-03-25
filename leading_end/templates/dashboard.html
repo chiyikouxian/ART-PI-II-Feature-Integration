@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}数据仪表盘 - 手套数据采集系统{% endblock %}
+
+{% block content %}
+<div class="layui-row layui-col-space15">
+    <div class="layui-col-md12">
+        <div class="card">
+            <div class="card-title">数据仪表盘</div>
+
+            <!-- 统计卡片 -->
+            <div class="layui-row layui-col-space15">
+                <div class="layui-col-md3">
+                    <div class="layui-card layui-bg-cyan">
+                        <div class="layui-card-body">
+                            <h2 id="stat-total">0</h2>
+                            <p>总采集数据</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="layui-col-md3">
+                    <div class="layui-card layui-bg-green">
+                        <div class="layui-card-body">
+                            <h2 id="stat-today">0</h2>
+                            <p>今日采集</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="layui-col-md3">
+                    <div class="layui-card layui-bg-orange">
+                        <div class="layui-card-body">
+                            <h2 id="stat-gestures">0</h2>
+                            <p>已识别手势</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="layui-col-md3">
+                    <div class="layui-card layui-bg-blue">
+                        <div class="layui-card-body">
+                            <h2 id="stat-accuracy">0%</h2>
+                            <p>识别准确率</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="layui-row layui-col-space15">
+    <div class="layui-col-md12">
+        <div class="card">
+            <div class="card-title">历史数据</div>
+            <table class="layui-table" id="data-table" lay-filter="dataTable">
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+layui.use(['table', 'layer'], function() {
+    var table = layui.table;
+    var layer = layui.layer;
+
+    // 初始化数据表格
+    table.render({
+        elem: '#data-table',
+        url: '/api/glove/data',
+        page: true,
+        cols: [[
+            {field: 'id', title: 'ID', width: 80, sort: true},
+            {field: 'gesture_type', title: '手势类型', width: 150},
+            {field: 'timestamp', title: '采集时间', width: 200},
+            {title: '操作', width: 150, toolbar: '#barDemo'}
+        ]],
+        parseData: function(res) {
+            return {
+                "code": 0,
+                "msg": "",
+                "count": res.total,
+                "data": res.data
+            };
+        }
+    });
+
+    // 加载统计数据
+    loadStatistics();
+
+    function loadStatistics() {
+        // TODO: 从API获取统计数据
+    }
+});
+</script>
+
+<script type="text/html" id="barDemo">
+    <a class="layui-btn layui-btn-xs" lay-event="detail">查看</a>
+    <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</a>
+</script>
+{% endblock %}
