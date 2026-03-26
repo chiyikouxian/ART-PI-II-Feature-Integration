@@ -29,22 +29,34 @@
 
 /* I2C2通道分配:
  *   CH0, CH1: MPU6050 (WHO_AM_I=0x68)
- *   CH2:      MPU9250 (WHO_AM_I=0x71), 含AK8963磁力计
+ *   CH2:      ICM-20948 (WHO_AM_I=0xEA), 含AK09916磁力计
  *   CH3:      OLED (SH1106)
  */
-#define MPU9250_I2C2_CHANNEL     2
-#define MPU9250_ADDR             0x68
-#define MPU9250_WHO_AM_I         0x71
+#define ICM20948_I2C2_CHANNEL    2
+#define ICM20948_ADDR            0x68
+#define ICM20948_WHO_AM_I        0xEA
 
-/* AK8963磁力计 */
-#define AK8963_ADDR              0x0C
-#define AK8963_WHO_AM_I          0x48
-#define AK8963_WIA               0x00
-#define AK8963_ST1               0x02
-#define AK8963_HXL               0x03
-#define AK8963_ST2               0x09
-#define AK8963_CNTL1             0x0A
-#define AK8963_CNTL2             0x0B
+/* ICM-20948 寄存器 (Bank 0) */
+#define ICM20948_REG_BANK_SEL    0x7F    /* Bank选择寄存器 */
+#define ICM20948_WHO_AM_I_REG    0x00    /* WHO_AM_I寄存器 */
+#define ICM20948_PWR_MGMT_1      0x06    /* 电源管理1 */
+#define ICM20948_INT_PIN_CFG     0x0F    /* 中断引脚配置 (bypass) */
+#define ICM20948_ACCEL_XOUT_H    0x2D    /* 加速度计数据起始地址 (Bank 0) */
+#define ICM20948_GYRO_XOUT_H     0x33    /* 陀螺仪数据起始地址 (Bank 0) */
+
+/* ICM-20948 寄存器 (Bank 2) */
+#define ICM20948_GYRO_CONFIG_1   0x01    /* 陀螺仪配置 */
+#define ICM20948_ACCEL_CONFIG    0x14    /* 加速度计配置 */
+
+/* AK09916磁力计 (ICM-20948内置) */
+#define AK09916_ADDR             0x0C
+#define AK09916_WHO_AM_I         0x09
+#define AK09916_WIA2             0x01    /* WHO_AM_I寄存器 */
+#define AK09916_ST1              0x10    /* 状态寄存器1 */
+#define AK09916_HXL              0x11    /* 磁力计数据起始地址 */
+#define AK09916_ST2              0x18    /* 状态寄存器2 */
+#define AK09916_CNTL2            0x31    /* 控制寄存器2 (测量模式) */
+#define AK09916_CNTL3            0x32    /* 控制寄存器3 (软复位) */
 
 /* ========== 对外数据接口 (供tcp_client等模块读取) ========== */
 
@@ -55,7 +67,7 @@
 typedef struct {
     short ax, ay, az;       /* 加速度计原始值 */
     short gx, gy, gz;       /* 陀螺仪原始值 */
-    short mx, my, mz;       /* 磁力计原始值 (仅ch10有效) */
+    short mx, my, mz;       /* 磁力计原始值 (仅ch10 ICM-20948有效) */
     rt_bool_t valid;        /* 传感器是否检测到 */
     rt_bool_t has_mag;      /* 是否有磁力计 */
 } mpu_channel_data_t;
@@ -65,7 +77,7 @@ typedef struct {
  * @param  ch 通道号 0~10
  *         ch0~ch7:  I2C1 TCA CH0~CH7 (MPU6050, 6-DOF)
  *         ch8~ch9:  I2C2 TCA CH0~CH1 (MPU6050, 6-DOF)
- *         ch10:     I2C2 TCA CH2     (MPU9250, 9-DOF)
+ *         ch10:     I2C2 TCA CH2     (ICM-20948, 9-DOF)
  * @param  out 输出数据
  * @return RT_EOK 成功, -RT_ERROR 通道号无效
  */

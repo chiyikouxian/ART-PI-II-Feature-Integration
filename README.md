@@ -51,13 +51,13 @@
 |------|---------|---------|--------|----------|
 | CH0~CH7 | I2C1 (PB8/PB9) | TCA#1 CH0~CH7 | 8× MPU6050 | 6-DOF (ax,ay,az,gx,gy,gz) |
 | CH8~CH9 | I2C2 (PE1/PE2) | TCA#2 CH0~CH1 | 2× MPU6050 | 6-DOF (ax,ay,az,gx,gy,gz) |
-| CH10 | I2C2 (PE1/PE2) | TCA#2 CH2 | 1× MPU9250 | 9-DOF (+mx,my,mz磁力计) |
+| CH10 | I2C2 (PE1/PE2) | TCA#2 CH2 | 1× ICM-20948 | 9-DOF (+mx,my,mz磁力计) |
 
 ### 引脚分配
 
 ```
 I2C1 (PB8-SCL, PB9-SDA) → TCA9548A #1 (0x70) → 8× MPU6050
-I2C2 (PE1-SCL, PE2-SDA) → TCA9548A #2 (0x70) → 2× MPU6050 + MPU9250 + OLED
+I2C2 (PE1-SCL, PE2-SDA) → TCA9548A #2 (0x70) → 2× MPU6050 + ICM-20948 + OLED
 UART1 (PF13-TX, PF12-RX) ← 外部串口 / VTX316语音合成
 UART4 (PD0-TX, PD1-RX)   → 控制台 (MSH Shell, 115200 baud)
 ADC1 CH12 (PC2)           ← 锂电池分压 (2× 1KΩ, 比例1:2)
@@ -83,7 +83,7 @@ main()
 
 ### 核心功能
 
-- **11路IMU传感器采集**: 10Hz采样率，TCA9548A通道切换，支持MPU6050(6轴)和MPU9250(9轴)
+- **11路IMU传感器采集**: 10Hz采样率，TCA9548A通道切换，支持MPU6050(6轴)和ICM-20948(9轴)
 - **WiFi TCP双向通信**: JSON格式数据实时上传至PC端（默认 192.168.6.92:8266），支持接收PC下发命令
 - **锂电池监测**: ADC采集 + 8次滑动平均滤波，14级电池图标显示，范围3.0V~4.2V
 - **OLED实时显示**: SH1106 128×64屏幕，状态栏(电压/电量) + 3行文本滚动显示

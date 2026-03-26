@@ -20,7 +20,7 @@
  *          硬件连接:
  *          - LED:   PO5 (心跳指示)
  *          - I2C1:  PB8-SCL, PB9-SDA → TCA9548A #1 → 8路MPU6050
- *          - I2C2:  PE1-SCL, PE2-SDA → TCA9548A #2 → 2路MPU6050 + 1路MPU9250 + OLED
+ *          - I2C2:  PE1-SCL, PE2-SDA → TCA9548A #2 → 2路MPU6050 + 1路ICM-20948 + OLED
  *          - UART1: PF13-TX, PF12-RX → 外部串口输入
  *          - ADC1:  PC2 (CH12) → 电阻分压采集锂电池电压
  *          - WiFi:  板载CYW43438模块 → TCP发送传感器数据
@@ -124,7 +124,7 @@ int main(void)
         rt_kprintf("[Main] Failed to create UART_OLED thread\n");
     }
 
-    /* --- 线程3: MPU6050/MPU9250多路传感器数据采集 (常驻运行) --- */
+    /* --- 线程3: MPU6050/ICM-20948多路传感器数据采集 (常驻运行) --- */
     result = rt_thread_init(&mpu6050_thread,
                             "mpu6050",
                             mpu6050_thread_entry,

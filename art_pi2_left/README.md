@@ -6,7 +6,7 @@
 
 ### 核心功能
 
-- **11路IMU传感器数据采集**：通过双TCA9548A I2C多路复用器，采集8路MPU6050（6轴）+ 2路MPU6050（6轴）+ 1路MPU9250（9轴，含磁力计）
+- **11路IMU传感器数据采集**：通过双TCA9548A I2C多路复用器，采集8路MPU6050（6轴）+ 2路MPU6050（6轴）+ 1路ICM-20948（9轴，含磁力计）
 - **WiFi TCP双向通信**：通过板载CYW43438 WiFi模块，以JSON格式将传感器数据实时发送到PC端，同时支持接收PC下发命令
 - **锂电池电压监测**：ADC采集锂电池分压电压，8次滑动平均滤波，14级精细电池图标显示
 - **OLED实时显示**：128×64 SH1106 OLED屏幕，顶部状态栏显示电池电压/电量图标，下方3行显示串口接收文本
@@ -51,7 +51,7 @@ STM32H7RS (ART-Pi2) 引脚分配:
 
 I2C1 (PB8-SCL, PB9-SDA) → TCA9548A #1 (0x70) → CH0~CH7: 8× MPU6050 (6-DOF)
 I2C2 (PE1-SCL, PE2-SDA) → TCA9548A #2 (0x70) → CH0~CH1: 2× MPU6050 (6-DOF)
-                                               → CH2:     MPU9250 (9-DOF, 含AK8963磁力计)
+                                               → CH2:     ICM-20948 (9-DOF, 含AK09916磁力计)
                                                → CH3:     OLED SH1106 (128×64)
 
 UART1 (PF13-TX, PF12-RX) ← 外部串口输入 (P1排针)
@@ -111,7 +111,7 @@ art_pi2_right/
 │   └── uart_oled_thread.c/h        # UART1接收 + OLED显示 + 电池状态栏
 ├── mpu6050/                        # IMU传感器模块
 │   ├── mpu6050_thread.c/h          # 多路传感器采集线程 (11通道)
-│   └── mpu6050.c/h                 # MPU6050/MPU9250底层I2C寄存器驱动
+│   └── mpu6050.c/h                 # MPU6050/ICM-20948底层I2C寄存器驱动
 ├── board/                          # 板级支持
 │   ├── board.c/h                   # 板级初始化
 │   ├── CubeMX_Config/              # STM32CubeMX生成的HAL配置
@@ -148,7 +148,7 @@ rt_err_t mpu_get_channel_data(int ch, mpu_channel_data_t *out);
 /* 通道分配:
  *   ch0~ch7:  I2C1 TCA9548A CH0~CH7 → MPU6050 (6-DOF: ax,ay,az,gx,gy,gz)
  *   ch8~ch9:  I2C2 TCA9548A CH0~CH1 → MPU6050 (6-DOF)
- *   ch10:     I2C2 TCA9548A CH2     → MPU9250 (9-DOF: +mx,my,mz磁力计)
+ *   ch10:     I2C2 TCA9548A CH2     → ICM-20948 (9-DOF: +mx,my,mz磁力计)
  */
 
 /* 获取电池状态 */

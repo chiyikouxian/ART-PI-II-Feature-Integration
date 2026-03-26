@@ -338,9 +338,9 @@
             <v6Rtti>0</v6Rtti>
             <VariousControls>
               <MiscControls></MiscControls>
-              <Define>__STDC_LIMIT_MACROS, RT_USING_LIBC, USE_HAL_DRIVER, __CLK_TCK=RT_TICK_PER_SECOND, STM32H7S7xx, __RTTHREAD__, RT_USING_ARMLIBC</Define>
+              <Define>__CLK_TCK=RT_TICK_PER_SECOND, STM32H7S7xx, __RTTHREAD__, USE_HAL_DRIVER, __STDC_LIMIT_MACROS, RT_USING_ARMLIBC, RT_USING_LIBC</Define>
               <Undefine></Undefine>
-              <IncludePath>rt-thread\components\drivers\wlan;rt-thread\components\drivers\include;board\CubeMX_Config\Appli\Core\Inc;rt-thread\components\libc\compilers\common\extension;rt-thread\components\finsh;rt-thread\components\drivers\include;rt-thread\components\drivers\include;libraries\drivers\include\config;rt-thread\libcpu\arm\common;rt-thread\components\net\netdev\include;rt-thread\components\net\sal\include\dfs_net;rt-thread\components\drivers\include;packages\wifi-host-driver-latest\porting\inc\hal;rt-thread\components\fal\inc;libraries\CMSIS\Device\ST\STM32H7RSxx\Include;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\include;rt-thread\components\dfs\dfs_v1\filesystems\devfs;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\resources\firmware\COMPONENT_43438;vtx316;rt-thread\components\libc\posix\ipc;packages\wifi-host-driver-latest\wifi-host-driver;applications;UART;rt-thread\components\net\sal\include\socket\sys_socket;rt-thread\components\drivers\include;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\bus_protocols;packages\wifi-host-driver-latest\porting\inc\bsp;rt-thread\components\drivers\spi;rt-thread\libcpu\arm\cortex-m7;board\port;libraries\drivers;libraries\drivers\include;.;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\resources\nvram\COMPONENT_43438\COMPONENT_AW-CU427-P;rt-thread\components\libc\posix\io\eventfd;rt-thread\components\drivers\spi\sfud\inc;libraries\bsp_components;packages\wifi-host-driver-latest\porting\inc\rtos;mpu6050;libraries\CMSIS\Include;rt-thread\components\drivers\include;rt-thread\components\net\lwip\lwip-2.1.2\src\include;rt-thread\components\net\lwip\port;rt-thread\components\net\sal\include;rt-thread\components\libc\compilers\common\extension\fcntl\octal;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\resources\clm\COMPONENT_43438;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\resources\resource_imp;rt-thread\components\dfs\dfs_v1\filesystems\romfs;rt-thread\components\drivers\include;rt-thread\components\net\sal\impl;rt-thread\components\dfs\dfs_v1\filesystems\elmfat;rt-thread\components\libc\posix\io\poll;rt-thread\components\net\sal\include\socket;rt-thread\components\drivers\include;board;rt-thread\components\dfs\dfs_v1\include;rt-thread\components\libc\posix\io\epoll;libraries\STM32H7RSxx_HAL_Driver\Inc;IIC;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src;rt-thread\components\net\lwip\lwip-2.1.2\src\include\netif;rt-thread\include;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\inc;rt-thread\components\libc\compilers\common\include</IncludePath>
+              <IncludePath>libraries\drivers;rt-thread\components\drivers\include;rt-thread\components\drivers\include;rt-thread\components\net\lwip\lwip-2.1.2\src\include;board;UART;rt-thread\components\net\sal\include\socket;applications;rt-thread\components\drivers\include;rt-thread\components\libc\compilers\common\extension;rt-thread\libcpu\arm\cortex-m7;rt-thread\components\libc\compilers\common\include;rt-thread\components\drivers\include;rt-thread\components\libc\posix\ipc;rt-thread\components\net\sal\include\socket\sys_socket;libraries\CMSIS\Device\ST\STM32H7RSxx\Include;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\inc;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\resources\firmware\COMPONENT_43438;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\bus_protocols;rt-thread\components\drivers\wlan;mpu6050;libraries\CMSIS\Include;libraries\drivers\include\config;vtx316;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\resources\nvram\COMPONENT_43438\COMPONENT_AW-CU427-P;board\port;rt-thread\components\net\sal\include\dfs_net;libraries\STM32H7RSxx_HAL_Driver\Inc;rt-thread\libcpu\arm\common;rt-thread\components\dfs\dfs_v1\filesystems\romfs;packages\wifi-host-driver-latest\wifi-host-driver;libraries\drivers\include;rt-thread\components\drivers\include;rt-thread\components\drivers\include;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\include;IIC;board\CubeMX_Config\Appli\Core\Inc;rt-thread\components\drivers\spi\sfud\inc;rt-thread\components\drivers\include;rt-thread\components\dfs\dfs_v1\filesystems\devfs;rt-thread\components\net\sal\impl;rt-thread\components\dfs\dfs_v1\include;rt-thread\components\net\sal\include;rt-thread\components\finsh;packages\wifi-host-driver-latest\porting\inc\rtos;rt-thread\include;rt-thread\components\fal\inc;rt-thread\components\drivers\include;rt-thread\components\net\lwip\lwip-2.1.2\src\include\netif;rt-thread\components\libc\posix\io\epoll;rt-thread\components\libc\posix\io\eventfd;packages\wifi-host-driver-latest\porting\inc\hal;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\resources\resource_imp;rt-thread\components\drivers\spi;rt-thread\components\dfs\dfs_v1\filesystems\elmfat;.;rt-thread\components\libc\posix\io\poll;libraries\bsp_components;rt-thread\components\net\netdev\include;packages\wifi-host-driver-latest\porting\inc\bsp;rt-thread\components\libc\compilers\common\extension\fcntl\octal;packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\resources\clm\COMPONENT_43438;rt-thread\components\net\lwip\port</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -390,14 +390,14 @@
               <FilePath>applications\main.c</FilePath>
             </File>
             <File>
-              <FileName>adc_battery.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>applications\adc_battery.c</FilePath>
-            </File>
-            <File>
               <FileName>tcp_client.c</FileName>
               <FileType>1</FileType>
               <FilePath>applications\tcp_client.c</FilePath>
+            </File>
+            <File>
+              <FileName>adc_battery.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\adc_battery.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -2373,11 +2373,6 @@
               <FilePath>rt-thread\components\fal\src\fal.c</FilePath>
             </File>
             <File>
-              <FileName>fal_flash.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>rt-thread\components\fal\src\fal_flash.c</FilePath>
-            </File>
-            <File>
               <FileName>fal_partition.c</FileName>
               <FileType>1</FileType>
               <FilePath>rt-thread\components\fal\src\fal_partition.c</FilePath>
@@ -2386,6 +2381,11 @@
               <FileName>fal_rtt.c</FileName>
               <FileType>1</FileType>
               <FilePath>rt-thread\components\fal\src\fal_rtt.c</FilePath>
+            </File>
+            <File>
+              <FileName>fal_flash.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\fal\src\fal_flash.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -2443,9 +2443,19 @@
           <GroupName>Finsh</GroupName>
           <Files>
             <File>
+              <FileName>msh_parse.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\finsh\msh_parse.c</FilePath>
+            </File>
+            <File>
               <FileName>cmd.c</FileName>
               <FileType>1</FileType>
               <FilePath>rt-thread\components\finsh\cmd.c</FilePath>
+            </File>
+            <File>
+              <FileName>msh_file.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\finsh\msh_file.c</FilePath>
             </File>
             <File>
               <FileName>msh.c</FileName>
@@ -2457,40 +2467,30 @@
               <FileType>1</FileType>
               <FilePath>rt-thread\components\finsh\shell.c</FilePath>
             </File>
-            <File>
-              <FileName>msh_file.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>rt-thread\components\finsh\msh_file.c</FilePath>
-            </File>
-            <File>
-              <FileName>msh_parse.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>rt-thread\components\finsh\msh_parse.c</FilePath>
-            </File>
           </Files>
         </Group>
         <Group>
           <GroupName>IIC</GroupName>
           <Files>
             <File>
-              <FileName>i2c_gpio.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>IIC\i2c_gpio.c</FilePath>
-            </File>
-            <File>
-              <FileName>iic_thread.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>IIC\iic_thread.c</FilePath>
-            </File>
-            <File>
               <FileName>i2c2_mutex.c</FileName>
               <FileType>1</FileType>
               <FilePath>IIC\i2c2_mutex.c</FilePath>
             </File>
             <File>
+              <FileName>i2c_gpio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>IIC\i2c_gpio.c</FilePath>
+            </File>
+            <File>
               <FileName>tca9548a.c</FileName>
               <FileType>1</FileType>
               <FilePath>IIC\tca9548a.c</FilePath>
+            </File>
+            <File>
+              <FileName>iic_thread.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>IIC\iic_thread.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -3663,134 +3663,9 @@
           <GroupName>STM32_HAL</GroupName>
           <Files>
             <File>
-              <FileName>stm32h7rsxx_hal_pwr_ex.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_pwr_ex.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_rcc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_rcc.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_gpio.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_gpio.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_adc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_adc.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_cryp.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_cryp.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_pwr.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_pwr.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_flash.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_flash.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_cryp_ex.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_cryp_ex.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_uart_ex.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_uart_ex.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_adc_ex.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_adc_ex.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_rng.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_rng.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_ll_sdmmc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_ll_sdmmc.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_uart.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_uart.c</FilePath>
-            </File>
-            <File>
-              <FileName>system_stm32h7rsxx.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\CMSIS\Device\ST\STM32H7RSxx\Source\Templates\system_stm32h7rsxx.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_dma.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_dma.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_rcc_ex.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_rcc_ex.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_flash_ex.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_flash_ex.c</FilePath>
-            </File>
-            <File>
               <FileName>stm32h7rsxx_hal_spi.c</FileName>
               <FileType>1</FileType>
               <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_spi.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_crc_ex.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_crc_ex.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_xspi.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_xspi.c</FilePath>
-            </File>
-            <File>
-              <FileName>startup_stm32h7r7xx.s</FileName>
-              <FileType>2</FileType>
-              <FilePath>libraries\CMSIS\Device\ST\STM32H7RSxx\Source\Templates\arm\startup_stm32h7r7xx.s</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_cortex.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_cortex.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_sram.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_sram.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_crc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_crc.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal_dma_ex.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_dma_ex.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32h7rsxx_hal.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal.c</FilePath>
             </File>
             <File>
               <FileName>stm32h7rsxx_hal_cec.c</FileName>
@@ -3798,14 +3673,139 @@
               <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_cec.c</FilePath>
             </File>
             <File>
-              <FileName>stm32h7rsxx_hal_sd.c</FileName>
+              <FileName>system_stm32h7rsxx.c</FileName>
               <FileType>1</FileType>
-              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_sd.c</FilePath>
+              <FilePath>libraries\CMSIS\Device\ST\STM32H7RSxx\Source\Templates\system_stm32h7rsxx.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_cryp_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_cryp_ex.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_cortex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_cortex.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_dma.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_dma.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_adc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_adc.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_crc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_crc.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_rng.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_rng.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_pwr.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_pwr.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_xspi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_xspi.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_rcc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_rcc.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_rcc_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_rcc_ex.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_sram.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_sram.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_gpio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_gpio.c</FilePath>
             </File>
             <File>
               <FileName>stm32h7rsxx_hal_usart.c</FileName>
               <FileType>1</FileType>
               <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_usart.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_uart_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_uart_ex.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_crc_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_crc_ex.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_flash_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_flash_ex.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_flash.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_flash.c</FilePath>
+            </File>
+            <File>
+              <FileName>startup_stm32h7r7xx.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>libraries\CMSIS\Device\ST\STM32H7RSxx\Source\Templates\arm\startup_stm32h7r7xx.s</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_sd.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_sd.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_ll_sdmmc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_ll_sdmmc.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_pwr_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_pwr_ex.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_uart.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_cryp.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_cryp.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_adc_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_adc_ex.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7rsxx_hal_dma_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32H7RSxx_HAL_Driver\Src\stm32h7rsxx_hal_dma_ex.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -3823,14 +3823,19 @@
           <GroupName>whd</GroupName>
           <Files>
             <File>
-              <FileName>43438A1_clm_blob.c</FileName>
+              <FileName>whd_bus_common.c</FileName>
               <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\resources\clm\COMPONENT_43438\43438A1_clm_blob.c</FilePath>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\bus_protocols\whd_bus_common.c</FilePath>
             </File>
             <File>
-              <FileName>whd_resources.c</FileName>
+              <FileName>whd_chip.c</FileName>
               <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\resources\resource_imp\whd_resources.c</FilePath>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_chip.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_debug.c</FilePath>
             </File>
             <File>
               <FileName>cy_network_buffer.c</FileName>
@@ -3838,9 +3843,24 @@
               <FilePath>packages\wifi-host-driver-latest\porting\src\bsp\cy_network_buffer.c</FilePath>
             </File>
             <File>
-              <FileName>whd_sdpcm.c</FileName>
+              <FileName>whd_msgbuf_txrx.c</FileName>
               <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_sdpcm.c</FilePath>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_msgbuf_txrx.c</FilePath>
+            </File>
+            <File>
+              <FileName>cyhal_gpio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\porting\src\hal\cyhal_gpio.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_flowring.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_flowring.c</FilePath>
+            </File>
+            <File>
+              <FileName>cybsp.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\porting\src\bsp\cybsp.c</FilePath>
             </File>
             <File>
               <FileName>whd_management.c</FileName>
@@ -3848,14 +3868,9 @@
               <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_management.c</FilePath>
             </File>
             <File>
-              <FileName>whd_bus_sdio_protocol.c</FileName>
+              <FileName>whd_ap.c</FileName>
               <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\bus_protocols\whd_bus_sdio_protocol.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_wifi_p2p.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_wifi_p2p.c</FilePath>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_ap.c</FilePath>
             </File>
             <File>
               <FileName>cyhal_sdio.c</FileName>
@@ -3863,9 +3878,94 @@
               <FilePath>packages\wifi-host-driver-latest\porting\src\hal\cyhal_sdio.c</FilePath>
             </File>
             <File>
-              <FileName>whd_proto.c</FileName>
+              <FileName>whd_utils.c</FileName>
               <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_proto.c</FilePath>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_utils.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_resource_if.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_resource_if.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_wifi_api.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_wifi_api.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_cdc_bdc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_cdc_bdc.c</FilePath>
+            </File>
+            <File>
+              <FileName>resources.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\porting\src\resources\resources.c</FilePath>
+            </File>
+            <File>
+              <FileName>43438A1_clm_blob.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\resources\clm\COMPONENT_43438\43438A1_clm_blob.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_rtos.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\porting\src\rtos\whd_rtos.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_clm.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_clm.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_thread.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_thread.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_events.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_events.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_ring.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_ring.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_sdpcm.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_sdpcm.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_bus_sdio_protocol.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\bus_protocols\whd_bus_sdio_protocol.c</FilePath>
+            </File>
+            <File>
+              <FileName>43438A1_bin.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\resources\firmware\COMPONENT_43438\43438A1_bin.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_wifi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_wifi.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_resources.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\resources\resource_imp\whd_resources.c</FilePath>
+            </File>
+            <File>
+              <FileName>download.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\porting\src\resources\download.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_network_if.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_network_if.c</FilePath>
             </File>
             <File>
               <FileName>whd_logging.c</FileName>
@@ -3873,9 +3973,19 @@
               <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_logging.c</FilePath>
             </File>
             <File>
-              <FileName>whd_utils.c</FileName>
+              <FileName>whd_wifi_p2p.c</FileName>
               <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_utils.c</FilePath>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_wifi_p2p.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_chip_constants.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_chip_constants.c</FilePath>
+            </File>
+            <File>
+              <FileName>whd_proto.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_proto.c</FilePath>
             </File>
             <File>
               <FileName>whd_wlan.c</FileName>
@@ -3888,124 +3998,14 @@
               <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_buffer_api.c</FilePath>
             </File>
             <File>
-              <FileName>whd_wifi.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_wifi.c</FilePath>
-            </File>
-            <File>
-              <FileName>cyhal_gpio.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\porting\src\hal\cyhal_gpio.c</FilePath>
-            </File>
-            <File>
               <FileName>whd_commonring.c</FileName>
               <FileType>1</FileType>
               <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_commonring.c</FilePath>
             </File>
             <File>
-              <FileName>whd_clm.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_clm.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_rtos.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\porting\src\rtos\whd_rtos.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_ap.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_ap.c</FilePath>
-            </File>
-            <File>
-              <FileName>cybsp.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\porting\src\bsp\cybsp.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_flowring.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_flowring.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_events.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_events.c</FilePath>
-            </File>
-            <File>
               <FileName>whd_bus.c</FileName>
               <FileType>1</FileType>
               <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\bus_protocols\whd_bus.c</FilePath>
-            </File>
-            <File>
-              <FileName>download.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\porting\src\resources\download.c</FilePath>
-            </File>
-            <File>
-              <FileName>43438A1_bin.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\resources\firmware\COMPONENT_43438\43438A1_bin.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_msgbuf_txrx.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_msgbuf_txrx.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_cdc_bdc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_cdc_bdc.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_network_if.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_network_if.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_debug.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_debug.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_thread.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_thread.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_bus_common.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\bus_protocols\whd_bus_common.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_resource_if.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_resource_if.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_chip_constants.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_chip_constants.c</FilePath>
-            </File>
-            <File>
-              <FileName>resources.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\porting\src\resources\resources.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_ring.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_ring.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_wifi_api.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_wifi_api.c</FilePath>
-            </File>
-            <File>
-              <FileName>whd_chip.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\wifi-host-driver-latest\wifi-host-driver\WiFi_Host_Driver\src\whd_chip.c</FilePath>
             </File>
           </Files>
         </Group>

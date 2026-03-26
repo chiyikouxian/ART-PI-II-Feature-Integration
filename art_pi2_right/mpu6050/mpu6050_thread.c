@@ -1,9 +1,9 @@
 /**
  * @file mpu6050_thread.c
- * @brief MPU6050/MPU9250数据采集线程
+ * @brief MPU6050/ICM-20948数据采集线程
  * @note  通过双TCA9548A I2C复用模块，读取多路传感器原始数据
  *        I2C1 (PB8/PB9): TCA9548A #1 - 最多8路MPU6050
- *        I2C2 (PE1/PE2): TCA9548A #2 - CH0/CH1: MPU6050, CH2: MPU9250, CH3: OLED
+ *        I2C2 (PE1/PE2): TCA9548A #2 - CH0/CH1: MPU6050, CH2: ICM-20948, CH3: OLED
  */
 
 #include <rtthread.h>
@@ -17,9 +17,9 @@
 typedef struct {
     short accel[3];     /* 加速度计数据 */
     short gyro[3];      /* 陀螺仪数据 */
-    short mag[3];       /* 磁力计数据 (仅MPU9250使用) */
+    short mag[3];       /* 磁力计数据 (仅ICM-20948使用) */
     rt_bool_t valid;    /* 数据有效标志 */
-    rt_bool_t has_mag;  /* 是否有磁力计 (MPU9250为true) */
+    rt_bool_t has_mag;  /* 是否有磁力计 (ICM-20948为true) */
 } mpu_sensor_data_t;
 
 static mpu_sensor_data_t mpu_data_i2c1[MPU6050_I2C1_COUNT];
@@ -84,7 +84,7 @@ static rt_err_t mpu_tca9548a_disable_all(const char *bus_name)
     return RT_EOK;
 }
 
-/* ========== 通用I2C读写辅助函数 (用于MPU9250/AK8963直接操作) ========== */
+/* ========== 通用I2C读写辅助函数 (用于ICM-20948/AK09916直接操作) ========== */
 
 static rt_err_t i2c_write_byte(const char *bus_name, rt_uint8_t dev_addr,
                                rt_uint8_t reg, rt_uint8_t data)
@@ -136,92 +136,131 @@ static rt_err_t i2c_read_bytes(const char *bus_name, rt_uint8_t dev_addr,
     return RT_EOK;
 }
 
-/* ========== MPU9250 bypass模式初始化 ========== */
+/* ========== ICM-20948 Bank选择与bypass模式初始化 ========== */
 
-static rt_err_t mpu9250_init_bypass(const char *bus_name)
+static rt_err_t icm20948_select_bank(const char *bus_name, rt_uint8_t bank)
+{
+    return i2c_write_byte(bus_name, ICM20948_ADDR, ICM20948_REG_BANK_SEL, (bank << 4));
+}
+
+static rt_err_t icm20948_init_bypass(const char *bus_name)
 {
     rt_uint8_t who_am_i;
 
-    if (i2c_read_bytes(bus_name, MPU9250_ADDR, 0x75, &who_am_i, 1) != RT_EOK)
+    /* 切换到Bank 0 */
+    icm20948_select_bank(bus_name, 0);
+
+    if (i2c_read_bytes(bus_name, ICM20948_ADDR, ICM20948_WHO_AM_I_REG, &who_am_i, 1) != RT_EOK)
     {
-        rt_kprintf("[MPU9250] Read WHO_AM_I failed\n");
+        rt_kprintf("[ICM-20948] Read WHO_AM_I failed\n");
         return -RT_ERROR;
     }
-    rt_kprintf("[MPU9250] WHO_AM_I=0x%02x\n", who_am_i);
+    rt_kprintf("[ICM-20948] WHO_AM_I=0x%02x\n", who_am_i);
 
-    /* 复位 */
-    i2c_write_byte(bus_name, MPU9250_ADDR, MPU_PWR_MGMT1_REG, 0x80);
+    /* 复位 (Bank 0: PWR_MGMT_1 = 0x06) */
+    i2c_write_byte(bus_name, ICM20948_ADDR, ICM20948_PWR_MGMT_1, 0x80);
     rt_thread_mdelay(100);
 
-    /* 唤醒，选择最佳时钟源 */
-    if (i2c_write_byte(bus_name, MPU9250_ADDR, MPU_PWR_MGMT1_REG, 0x01) != RT_EOK)
+    /* 复位后需重新选Bank 0 */
+    icm20948_select_bank(bus_name, 0);
+
+    /* 唤醒，选择自动时钟源 */
+    if (i2c_write_byte(bus_name, ICM20948_ADDR, ICM20948_PWR_MGMT_1, 0x01) != RT_EOK)
         return -RT_ERROR;
     rt_thread_mdelay(10);
 
-    /* 采样率分频 */
-    i2c_write_byte(bus_name, MPU9250_ADDR, MPU_SAMPLE_RATE_REG, 0x04);
-    /* DLPF */
-    i2c_write_byte(bus_name, MPU9250_ADDR, MPU_CFG_REG, 0x03);
-    /* 陀螺仪 ±2000dps */
-    i2c_write_byte(bus_name, MPU9250_ADDR, MPU_GYRO_CFG_REG, 0x18);
-    /* 加速度计 ±16g */
-    i2c_write_byte(bus_name, MPU9250_ADDR, MPU_ACCEL_CFG_REG, 0x18);
-
-    /* 启用I2C bypass模式，使主机可以直接访问AK8963 */
-    if (i2c_write_byte(bus_name, MPU9250_ADDR, MPU_INTBP_CFG_REG, 0x02) != RT_EOK)
-        return -RT_ERROR;
+    /* 禁用I2C Master模式，否则bypass无法工作 (Bank 0, USER_CTRL=0x03) */
+    rt_uint8_t user_ctrl = 0;
+    i2c_read_bytes(bus_name, ICM20948_ADDR, 0x03, &user_ctrl, 1);
+    rt_kprintf("[ICM-20948] USER_CTRL before=0x%02x\n", user_ctrl);
+    user_ctrl &= ~0x20;  /* 清除I2C_MST_EN (bit 5) */
+    i2c_write_byte(bus_name, ICM20948_ADDR, 0x03, user_ctrl);
     rt_thread_mdelay(10);
+
+    /* 切换到Bank 2，配置陀螺仪和加速度计 */
+    icm20948_select_bank(bus_name, 2);
+
+    /* 陀螺仪 ±2000dps, DLPF enabled */
+    i2c_write_byte(bus_name, ICM20948_ADDR, ICM20948_GYRO_CONFIG_1, 0x06);
+    /* 加速度计 ±16g, DLPF enabled */
+    i2c_write_byte(bus_name, ICM20948_ADDR, ICM20948_ACCEL_CONFIG, 0x06);
+
+    /* 切回Bank 0，启用I2C bypass模式以直接访问AK09916 */
+    icm20948_select_bank(bus_name, 0);
+    if (i2c_write_byte(bus_name, ICM20948_ADDR, ICM20948_INT_PIN_CFG, 0x22) != RT_EOK)
+        return -RT_ERROR;
+    rt_thread_mdelay(50);
+
+    /* 验证bypass模式是否生效 */
+    rt_uint8_t reg_val = 0;
+    i2c_read_bytes(bus_name, ICM20948_ADDR, ICM20948_INT_PIN_CFG, &reg_val, 1);
+    rt_kprintf("[ICM-20948] INT_PIN_CFG=0x%02x (expect 0x22)\n", reg_val);
 
     return RT_EOK;
 }
 
-/* ========== AK8963磁力计 ========== */
+/* ========== AK09916磁力计 (ICM-20948内置) ========== */
 
-static rt_err_t ak8963_init(const char *bus_name)
+static rt_err_t ak09916_init(const char *bus_name)
 {
     rt_uint8_t who;
+    int retry;
 
-    if (i2c_read_bytes(bus_name, AK8963_ADDR, AK8963_WIA, &who, 1) != RT_EOK)
-        return -RT_ERROR;
-
-    if (who != AK8963_WHO_AM_I)
+    /* 多次重试读取WHO_AM_I，bypass模式可能需要时间生效 */
+    for (retry = 0; retry < 3; retry++)
     {
-        rt_kprintf("[AK8963] WHO_AM_I mismatch: expected 0x%02x, got 0x%02x\n",
-                   AK8963_WHO_AM_I, who);
+        if (i2c_read_bytes(bus_name, AK09916_ADDR, AK09916_WIA2, &who, 1) == RT_EOK)
+        {
+            rt_kprintf("[AK09916] Attempt %d: WIA2=0x%02x\n", retry + 1, who);
+            if (who == AK09916_WHO_AM_I)
+                break;
+        }
+        else
+        {
+            rt_kprintf("[AK09916] Attempt %d: I2C read failed\n", retry + 1);
+        }
+        rt_thread_mdelay(20);
+    }
+
+    if (who != AK09916_WHO_AM_I)
+    {
+        rt_kprintf("[AK09916] WHO_AM_I mismatch: expected 0x%02x, got 0x%02x\n",
+                   AK09916_WHO_AM_I, who);
         return -RT_ERROR;
     }
-    rt_kprintf("[AK8963] WHO_AM_I=0x%02x (OK)\n", who);
+    rt_kprintf("[AK09916] WHO_AM_I=0x%02x (OK)\n", who);
 
     /* 软复位 */
-    i2c_write_byte(bus_name, AK8963_ADDR, AK8963_CNTL2, 0x01);
+    i2c_write_byte(bus_name, AK09916_ADDR, AK09916_CNTL3, 0x01);
     rt_thread_mdelay(10);
 
-    /* 连续测量模式2 (100Hz) + 16位输出 */
-    if (i2c_write_byte(bus_name, AK8963_ADDR, AK8963_CNTL1, 0x16) != RT_EOK)
+    /* 连续测量模式4 (100Hz) */
+    if (i2c_write_byte(bus_name, AK09916_ADDR, AK09916_CNTL2, 0x08) != RT_EOK)
         return -RT_ERROR;
     rt_thread_mdelay(10);
 
     return RT_EOK;
 }
 
-static rt_err_t ak8963_read_mag(const char *bus_name, short *mx, short *my, short *mz)
+static rt_err_t ak09916_read_mag(const char *bus_name, short *mx, short *my, short *mz)
 {
-    rt_uint8_t buf[7];
+    rt_uint8_t buf[8];
     rt_uint8_t st1;
 
     /* 检查数据是否准备好 */
-    if (i2c_read_bytes(bus_name, AK8963_ADDR, AK8963_ST1, &st1, 1) != RT_EOK)
+    if (i2c_read_bytes(bus_name, AK09916_ADDR, AK09916_ST1, &st1, 1) != RT_EOK)
         return -RT_ERROR;
 
     if (!(st1 & 0x01))
         return -RT_ERROR;  /* 数据未准备好 */
 
-    /* 读取6字节磁力计数据 + ST2 (必须读ST2以完成读取周期) */
-    if (i2c_read_bytes(bus_name, AK8963_ADDR, AK8963_HXL, buf, 7) != RT_EOK)
+    /* 读取8字节: HXL~HZH(6字节) + dummy(1字节) + ST2(1字节)
+     * 必须读到ST2以完成读取周期 */
+    if (i2c_read_bytes(bus_name, AK09916_ADDR, AK09916_HXL, buf, 8) != RT_EOK)
         return -RT_ERROR;
 
-    /* 检查磁场溢出 */
-    if (buf[6] & 0x08)
+    /* 检查磁场溢出 (ST2 bit 3) */
+    if (buf[7] & 0x08)
         return -RT_ERROR;
 
     /* 组合数据 (小端模式) */
@@ -229,6 +268,30 @@ static rt_err_t ak8963_read_mag(const char *bus_name, short *mx, short *my, shor
     *my = (short)((buf[3] << 8) | buf[2]);
     *mz = (short)((buf[5] << 8) | buf[4]);
 
+    return RT_EOK;
+}
+
+/* ========== ICM-20948 加速度计/陀螺仪读取 (寄存器地址与MPU6050不同) ========== */
+
+static rt_err_t icm20948_read_accel(const char *bus_name, short *ax, short *ay, short *az)
+{
+    rt_uint8_t buf[6];
+    if (i2c_read_bytes(bus_name, ICM20948_ADDR, ICM20948_ACCEL_XOUT_H, buf, 6) != RT_EOK)
+        return -RT_ERROR;
+    *ax = (short)((buf[0] << 8) | buf[1]);
+    *ay = (short)((buf[2] << 8) | buf[3]);
+    *az = (short)((buf[4] << 8) | buf[5]);
+    return RT_EOK;
+}
+
+static rt_err_t icm20948_read_gyro(const char *bus_name, short *gx, short *gy, short *gz)
+{
+    rt_uint8_t buf[6];
+    if (i2c_read_bytes(bus_name, ICM20948_ADDR, ICM20948_GYRO_XOUT_H, buf, 6) != RT_EOK)
+        return -RT_ERROR;
+    *gx = (short)((buf[0] << 8) | buf[1]);
+    *gy = (short)((buf[2] << 8) | buf[3]);
+    *gz = (short)((buf[4] << 8) | buf[5]);
     return RT_EOK;
 }
 
@@ -294,47 +357,44 @@ void mpu6050_thread_entry(void *parameter)
             continue;
         }
 
-        if (ch == MPU9250_I2C2_CHANNEL)
+        if (ch == ICM20948_I2C2_CHANNEL)
         {
-            /* 通道2是MPU9250，使用直接I2C读取检测 */
+            /* 通道2是ICM-20948，使用直接I2C读取检测 */
             rt_uint8_t who_am_i;
-            if (i2c_read_bytes(MPU6050_I2C2_BUS_NAME, MPU9250_ADDR, 0x75,
-                               &who_am_i, 1) == RT_EOK)
+            icm20948_select_bank(MPU6050_I2C2_BUS_NAME, 0);
+            if (i2c_read_bytes(MPU6050_I2C2_BUS_NAME, ICM20948_ADDR,
+                               ICM20948_WHO_AM_I_REG, &who_am_i, 1) == RT_EOK)
             {
                 rt_kprintf("  [I2C2-CH%d] Device found! WHO_AM_I=0x%02x", ch, who_am_i);
-                if (who_am_i == 0x71)
-                    rt_kprintf(" (MPU9250)\n");
-                else if (who_am_i == 0x70)
-                    rt_kprintf(" (MPU6500 - NO magnetometer!)\n");
-                else if (who_am_i == 0x68)
-                    rt_kprintf(" (MPU6050)\n");
+                if (who_am_i == 0xEA)
+                    rt_kprintf(" (ICM-20948)\n");
                 else
                     rt_kprintf(" (unknown)\n");
 
-                if (mpu9250_init_bypass(MPU6050_I2C2_BUS_NAME) == RT_EOK)
+                if (icm20948_init_bypass(MPU6050_I2C2_BUS_NAME) == RT_EOK)
                 {
-                    rt_kprintf("  [I2C2-CH%d] Bypass mode enabled, scanning AK8963...\n", ch);
+                    rt_kprintf("  [I2C2-CH%d] Bypass mode enabled, scanning AK09916...\n", ch);
 
-                    /* 尝试读取AK8963的WHO_AM_I来确认磁力计是否存在 */
+                    /* 尝试读取AK09916的WHO_AM_I来确认磁力计是否存在 */
                     rt_uint8_t ak_who = 0;
                     rt_err_t ak_ret = i2c_read_bytes(MPU6050_I2C2_BUS_NAME,
-                                                      AK8963_ADDR, AK8963_WIA,
+                                                      AK09916_ADDR, AK09916_WIA2,
                                                       &ak_who, 1);
-                    rt_kprintf("  [I2C2-CH%d] AK8963 scan: ret=%d, WIA=0x%02x (expect 0x48)\n",
+                    rt_kprintf("  [I2C2-CH%d] AK09916 scan: ret=%d, WIA2=0x%02x (expect 0x09)\n",
                                ch, ak_ret, ak_who);
 
-                    if (ak_ret == RT_EOK && ak_who == AK8963_WHO_AM_I)
+                    if (ak_ret == RT_EOK && ak_who == AK09916_WHO_AM_I)
                     {
-                        if (ak8963_init(MPU6050_I2C2_BUS_NAME) == RT_EOK)
+                        if (ak09916_init(MPU6050_I2C2_BUS_NAME) == RT_EOK)
                         {
-                            rt_kprintf("  [I2C2-CH%d] AK8963 magnetometer initialized\n", ch);
+                            rt_kprintf("  [I2C2-CH%d] AK09916 magnetometer initialized\n", ch);
                             mpu_data_i2c2[ch].valid = RT_TRUE;
                             mpu_data_i2c2[ch].has_mag = RT_TRUE;
                             i2c2_active_count++;
                         }
                         else
                         {
-                            rt_kprintf("  [I2C2-CH%d] AK8963 init failed, using 6-axis only\n", ch);
+                            rt_kprintf("  [I2C2-CH%d] AK09916 init failed, using 6-axis only\n", ch);
                             mpu_data_i2c2[ch].valid = RT_TRUE;
                             mpu_data_i2c2[ch].has_mag = RT_FALSE;
                             i2c2_active_count++;
@@ -342,7 +402,7 @@ void mpu6050_thread_entry(void *parameter)
                     }
                     else
                     {
-                        rt_kprintf("  [I2C2-CH%d] AK8963 not found! Chip is likely MPU6500, not MPU9250\n", ch);
+                        rt_kprintf("  [I2C2-CH%d] AK09916 not found!\n", ch);
                         rt_kprintf("  [I2C2-CH%d] Using 6-axis mode (no magnetometer)\n", ch);
                         mpu_data_i2c2[ch].valid = RT_TRUE;
                         mpu_data_i2c2[ch].has_mag = RT_FALSE;
@@ -351,7 +411,7 @@ void mpu6050_thread_entry(void *parameter)
                 }
                 else
                 {
-                    rt_kprintf("  [I2C2-CH%d] MPU init failed\n", ch);
+                    rt_kprintf("  [I2C2-CH%d] ICM-20948 init failed\n", ch);
                 }
             }
             else
@@ -433,21 +493,36 @@ void mpu6050_thread_entry(void *parameter)
                 if (mpu_tca9548a_select_channel(MPU6050_I2C2_BUS_NAME, ch) != RT_EOK)
                     continue;
 
-                /* 读取加速度计和陀螺仪 (MPU6050和MPU9250寄存器兼容) */
-                MPU_Get_Accelerometer(&mpu_data_i2c2[ch].accel[0],
-                                      &mpu_data_i2c2[ch].accel[1],
-                                      &mpu_data_i2c2[ch].accel[2]);
-                MPU_Get_Gyroscope(&mpu_data_i2c2[ch].gyro[0],
-                                  &mpu_data_i2c2[ch].gyro[1],
-                                  &mpu_data_i2c2[ch].gyro[2]);
+                if (ch == ICM20948_I2C2_CHANNEL)
+                {
+                    /* ICM-20948: 使用专用寄存器地址读取 */
+                    icm20948_read_accel(MPU6050_I2C2_BUS_NAME,
+                                        &mpu_data_i2c2[ch].accel[0],
+                                        &mpu_data_i2c2[ch].accel[1],
+                                        &mpu_data_i2c2[ch].accel[2]);
+                    icm20948_read_gyro(MPU6050_I2C2_BUS_NAME,
+                                       &mpu_data_i2c2[ch].gyro[0],
+                                       &mpu_data_i2c2[ch].gyro[1],
+                                       &mpu_data_i2c2[ch].gyro[2]);
+                }
+                else
+                {
+                    /* MPU6050: 使用原有函数读取 */
+                    MPU_Get_Accelerometer(&mpu_data_i2c2[ch].accel[0],
+                                          &mpu_data_i2c2[ch].accel[1],
+                                          &mpu_data_i2c2[ch].accel[2]);
+                    MPU_Get_Gyroscope(&mpu_data_i2c2[ch].gyro[0],
+                                      &mpu_data_i2c2[ch].gyro[1],
+                                      &mpu_data_i2c2[ch].gyro[2]);
+                }
 
-                /* MPU9250: 额外读取磁力计 */
+                /* ICM-20948: 额外读取磁力计 */
                 if (mpu_data_i2c2[ch].has_mag)
                 {
-                    ak8963_read_mag(MPU6050_I2C2_BUS_NAME,
-                                    &mpu_data_i2c2[ch].mag[0],
-                                    &mpu_data_i2c2[ch].mag[1],
-                                    &mpu_data_i2c2[ch].mag[2]);
+                    ak09916_read_mag(MPU6050_I2C2_BUS_NAME,
+                                     &mpu_data_i2c2[ch].mag[0],
+                                     &mpu_data_i2c2[ch].mag[1],
+                                     &mpu_data_i2c2[ch].mag[2]);
                 }
             }
             i2c2_mutex_release();
@@ -475,9 +550,9 @@ void mpu6050_thread_entry(void *parameter)
                     mpu_data_i2c2[i].gyro[0], mpu_data_i2c2[i].gyro[1], mpu_data_i2c2[i].gyro[2]);
             }
 
-            /* ch10: dorsal (MPU9250/MPU6500, 含mag) */
+            /* ch10: dorsal (ICM-20948, 含mag) */
             {
-                int d = MPU9250_I2C2_CHANNEL;
+                int d = ICM20948_I2C2_CHANNEL;
                 rt_kprintf(",%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
                     mpu_data_i2c2[d].accel[0], mpu_data_i2c2[d].accel[1], mpu_data_i2c2[d].accel[2],
                     mpu_data_i2c2[d].gyro[0], mpu_data_i2c2[d].gyro[1], mpu_data_i2c2[d].gyro[2],
