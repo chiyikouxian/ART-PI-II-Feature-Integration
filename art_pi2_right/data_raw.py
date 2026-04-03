@@ -1,6 +1,7 @@
 import openpyxl
 from openpyxl.utils import get_column_letter
 import sys
+import re
 
 # Excel文件路径
 EXCEL_PATH = r"C:\Users\ideapad15s\Downloads\data_raw.xlsx"
@@ -32,6 +33,21 @@ def get_target_start_row(ws):
         if ws.cell(row=row, column=2).value is None:
             return row
     return base_start_row
+
+def get_last_sample_counter(ws):
+    """【新增】自动读取最后一行的动作标志，返回下一个计数器值"""
+    # 从最后一行往上找，直到找到有数据的行
+    for row in range(ws.max_row, 1, -1):
+        # 检查E列（第5列）是否有动作标志（sample_id）
+        sample_id_cell = ws.cell(row=row, column=5).value
+        if sample_id_cell and isinstance(sample_id_cell, str):
+            # 用正则提取数字部分，比如 gt_003 -> 3
+            match = re.search(r'gt_(\d+)', sample_id_cell, re.IGNORECASE)
+            if match:
+                last_num = int(match.group(1))
+                return last_num + 1
+    # 如果没找到任何历史数据，从1开始
+    return 1
 
 def parse_input_data(input_str):
     """解析输入数据，不再严格校验列数"""
@@ -65,66 +81,93 @@ def main():
     total_cols = get_header_columns(ws)
     print(f"Excel表头列数：{total_cols}")
     
-    # 【修改后】依次输入4个参数：采集者、速度、中文含义、动作标志
-    worker = input("请输入采集者（worker）：").strip()
-    speed = input("请输入速度（v）：").strip()
-    label = input("请输入中文含义（label）：").strip()
-    sample_id = input("请输入动作标志（sample_id）：").strip()
+    # 【修改后】自动获取起始计数器
+    sample_counter = get_last_sample_counter(ws)
+    if sample_counter == 1:
+        print("未检测到历史数据，将从 gt_001 开始。")
+    else:
+        print(f"检测到历史数据，将从 gt_{sample_counter:03d} 开始。")
     
-    # 确认所有参数
+    # 一次性输入两个参数
+    while True:
+        init_input = input("\n请一次性输入参数（格式：采集者,中文标签）：\n>>> ").strip()
+        parts = [p.strip() for p in init_input.split(",") if p.strip()]
+
+        if len(parts) >= 2:
+            worker = parts[0]
+            label = parts[1]
+            break
+        else:
+            print("❌ 输入格式错误！请确保包含两个部分，用英文逗号分隔。")
+            print("   示例：gong,你好")
+
+    # 速度自动循环：每个速度6次，共18次
+    speed_list = ["slow", "medium", "high"]
+    repeat_per_speed = 6
+
+    # 确认信息
     print("\n--- 请确认以下信息 ---")
     print(f"采集者（worker）：{worker}")
-    print(f"速度（v）：{speed}")
-    print(f"中文含义（label）：{label}")
-    print(f"动作标志（sample_id）：{sample_id}")
+    print(f"中文标签（label）：{label}")
+    print(f"速度计划：slow×{repeat_per_speed} → medium×{repeat_per_speed} → high×{repeat_per_speed}，共18次")
+    print(f"起始动作标志（sample_id）：gt_{sample_counter:03d}")
     confirm = input("确认无误？(y/n)：").strip().lower()
     if confirm != 'y':
         print("已取消，请重新运行脚本。")
         return
+
+    # 初始化速度调度
+    speed_index = 0
+    speed_count = 0
     
+    total_rounds = len(speed_list) * repeat_per_speed  # 18
+    current_round = 0
+
     print("\n开始数据采集。输入数据后按回车提交，输入 'q' 退出。")
     print("数据格式：timestamp_ms,hand_type,f_0_s1_acc_x,...dorsal_mag_z")
     print("多条数据格式：[DATA]数据1[DATA]数据2...\n")
-    
-    while True:
-        # 读取用户多行输入
+
+    while current_round < total_rounds:
+        # 计算当前速度
+        speed = speed_list[speed_index]
+        remaining = repeat_per_speed - speed_count
+        print(f"\n【第 {current_round+1}/{total_rounds} 次】当前速度：{speed}（该速度还剩 {remaining} 次）")
         print(">>> 请输入数据：")
         lines = []
         while True:
             try:
                 line = input()
                 if line.strip().lower() == 'q':
-                    # 保存并退出
                     wb.save(EXCEL_PATH)
                     print(f"数据已保存到 {EXCEL_PATH}，程序退出。")
                     return
                 lines.append(line)
             except EOFError:
                 break
-        
+
         input_str = "\n".join(lines)
         if not input_str.strip():
             continue
-        
+
         # 解析数据
         data_rows = parse_input_data(input_str)
         if not data_rows:
             print("未解析到有效数据。")
             continue
-        
+
+        # 生成当前批次的动作标志
+        current_sample_id = f"gt_{sample_counter:03d}"
+
         # 获取写入起始行
         start_row = get_target_start_row(ws)
         for idx, data_parts in enumerate(data_rows):
             row_num = start_row + idx
-            # 【修改后】构造完整行数据：worker, v, label, sample_id, 传感器数据
-            row_data = [worker, speed, label, sample_id] + data_parts
-            
+            row_data = [worker, speed, label, current_sample_id] + data_parts
+
             # 从第2列（B列）开始写入，跳过第1列（A列）
             for col_num, value in enumerate(row_data, 2):
-                # 防止列数超出Excel范围
                 if col_num > total_cols:
                     break
-                # 尝试转换为数字
                 try:
                     if "." in value:
                         ws.cell(row=row_num, column=col_num, value=float(value))
@@ -132,14 +175,25 @@ def main():
                         ws.cell(row=row_num, column=col_num, value=int(value))
                 except (ValueError, TypeError):
                     ws.cell(row=row_num, column=col_num, value=value)
-        
+
         # 保存
         try:
             wb.save(EXCEL_PATH)
-            print(f"✅ 成功写入 {len(data_rows)} 行数据！本次写入起始行：{start_row}")
+            print(f"✅ 成功写入 {len(data_rows)} 行数据！")
+            print(f"   本次动作标志：{current_sample_id}，速度：{speed}，写入起始行：{start_row}")
+            sample_counter += 1
+            current_round += 1
+            speed_count += 1
+            # 当前速度录满，切换到下一个速度
+            if speed_count >= repeat_per_speed:
+                speed_index += 1
+                speed_count = 0
         except Exception as e:
             print(f"❌ 保存Excel文件出错：{e}")
             print("请确保文件未被其他程序打开。")
+
+    # 18次全部完成
+    print(f"\n🎉 该动作「{label}」的18次采集已全部完成！")
 
 if __name__ == "__main__":
     try:
