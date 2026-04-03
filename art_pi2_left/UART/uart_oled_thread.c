@@ -322,7 +322,7 @@ void uart_oled_thread_entry(void *parameter)
                     if (line_pos > 0)
                     {
                         line_buf[line_pos] = '\0';
-                        rt_kprintf("[UART_OLED] Recv: %s\n", line_buf);
+                        // rt_kprintf("[UART_OLED] Recv: %s\n", line_buf);
                         oled_add_line(line_buf);
                         line_pos = 0;
                     }
@@ -343,7 +343,7 @@ void uart_oled_thread_entry(void *parameter)
             if (line_pos > 0)
             {
                 line_buf[line_pos] = '\0';
-                rt_kprintf("[UART_OLED] Recv(timeout): %s\n", line_buf);
+                // rt_kprintf("[UART_OLED] Recv(timeout): %s\n", line_buf);
                 oled_add_line(line_buf);
                 line_pos = 0;
             }
