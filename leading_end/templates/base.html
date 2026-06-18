@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}手套数据采集系统{% endblock %}</title>
+    <!-- Layui CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='layui-v2.13.3/layui/css/layui.css') }}">
+    <!-- 自定义样式 -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="layui-layout-body">
+    <div class="layui-layout layui-layout-admin">
+        <!-- 头部 -->
+        <div class="layui-header">
+            <div class="layui-logo">
+                <img src="{{ url_for('static', filename='images/logo2.png') }}" alt="logo" class="header-logo">
+                <span class="header-title">基于RT-Thread 虚拟化混合部署平台与ART‑PIⅡ的边缘端双向手语翻译系统</span>
+            </div>
+            <ul class="layui-nav layui-layout-right">
+                {% if current_user.is_authenticated %}
+                <li class="layui-nav-item">
+                    <a href="javascript:;">{{ current_user.username }}</a>
+                    <dl class="layui-nav-child">
+                        <dd><a href="{{ url_for('auth.logout') }}">退出登录</a></dd>
+                    </dl>
+                </li>
+                {% else %}
+                <li class="layui-nav-item"><a href="{{ url_for('auth.login') }}">登录</a></li>
+                <li class="layui-nav-item"><a href="{{ url_for('auth.register') }}">注册</a></li>
+                {% endif %}
+            </ul>
+        </div>
+
+        <!-- 侧边栏 -->
+        <div class="layui-side layui-bg-black">
+            <div class="layui-side-scroll">
+                <ul class="layui-nav layui-nav-tree">
+                    {% for item in menu_items %}
+                    {% if item.children and item.children|selectattr('is_visible')|list %}
+                    {# 有子菜单的父级项 #}
+                    <li class="layui-nav-item{% if request.endpoint in item.children|map(attribute='endpoint')|list %} layui-nav-itemed{% endif %}">
+                        <a href="javascript:;">
+                            {% if item.icon %}<i class="layui-icon {{ item.icon }}"></i> {% endif %}
+                            {{ item.name }}
+                        </a>
+                        <dl class="layui-nav-child">
+                            {% for child in item.children if child.is_visible %}
+                            <dd{% if request.endpoint == child.endpoint %} class="layui-this"{% endif %}>
+                                <a href="{{ url_for(child.endpoint) }}">{{ child.name }}</a>
+                            </dd>
+                            {% endfor %}
+                        </dl>
+                    </li>
+                    {% else %}
+                    {# 普通菜单项（无子菜单） #}
+                    <li class="layui-nav-item{% if request.endpoint == item.endpoint %} layui-this{% endif %}">
+                        <a href="{{ url_for(item.endpoint) }}">
+                            {% if item.icon %}<i class="layui-icon {{ item.icon }}"></i> {% endif %}
+                            {{ item.name }}
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="layui-body">
+            <div class="container">
+                <!-- Flash消息 -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+
+        <!-- 底部 -->
+        <div class="layui-footer">
+            &copy; 2026 基于RT-Thread 虚拟化混合部署平台与ART‑PIⅡ的边缘端双向手语翻译系统
+        </div>
+    </div>
+
+    <!-- Layui JS -->
+    <script src="{{ url_for('static', filename='layui-v2.13.3/layui/layui.js') }}"></script>
+    <!-- 自定义JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

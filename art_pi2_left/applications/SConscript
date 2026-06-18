@@ -1,0 +1,28 @@
+import rtconfig
+from building import *
+
+cwd  = GetCurrentDir()
+path = [cwd]
+src  = Glob('*.c')
+
+path += [
+    cwd + '/../packages/NimBLE-v1.0.0/nimble/include',
+    cwd + '/../packages/NimBLE-v1.0.0/nimble/host/include',
+    cwd + '/../packages/NimBLE-v1.0.0/nimble/host/src',
+    cwd + '/../packages/NimBLE-v1.0.0/nimble/host/services/ans/include',
+    cwd + '/../packages/NimBLE-v1.0.0/nimble/host/services/bas/include',
+    cwd + '/../packages/NimBLE-v1.0.0/nimble/host/services/bleuart/include',
+    cwd + '/../packages/NimBLE-v1.0.0/nimble/host/services/gap/include',
+    cwd + '/../packages/NimBLE-v1.0.0/nimble/host/services/gatt/include',
+    cwd + '/../packages/NimBLE-v1.0.0/nimble/host/services/ias/include',
+    cwd + '/../packages/NimBLE-v1.0.0/nimble/host/services/lls/include',
+    cwd + '/../packages/NimBLE-v1.0.0/nimble/host/services/tps/include',
+    cwd + '/../packages/NimBLE-v1.0.0/nimble/host/store/ram/include',
+    cwd + '/../packages/NimBLE-v1.0.0/nimble/host/util/include',
+    cwd + '/../packages/NimBLE-v1.0.0/porting/nimble/include',
+    cwd + '/../packages/NimBLE-v1.0.0/porting/npl/rtthread/include',
+]
+
+group = DefineGroup('Applications', src, depend = [''], CPPPATH = path)
+
+Return('group')

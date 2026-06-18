@@ -1,0 +1,17 @@
+[Unit]
+Description=WiFi IMU Service (Rock board)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/rock/signblstm_deploy_past
+ExecStart=/usr/bin/python3 -u /home/rock/signblstm_deploy_past/run_wifi_service.py
+Restart=always
+RestartSec=2
+Environment=PYTHONUNBUFFERED=1
+# Optional: override config path
+# Environment=WIFI_SERVICE_CONFIG=/opt/project/src/wifi_service/service_config.json
+
+[Install]
+WantedBy=multi-user.target

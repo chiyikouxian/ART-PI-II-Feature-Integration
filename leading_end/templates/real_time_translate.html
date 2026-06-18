@@ -1,0 +1,847 @@
+{% extends "base.html" %}
+
+{% block title %}实时翻译 - 手套数据采集系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .layui-body { overflow: hidden; }
+    .layui-body > .container {
+        padding: 0;
+        max-width: none;
+        height: calc(100vh - 60px - 44px);
+        display: flex;
+    }
+
+    /* 左侧：3D模型区 (2/3) */
+    .gesture-left {
+        width: 66.6%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid #e6e6e6;
+        background: #fff;
+    }
+    /* 右侧：翻译面板 (1/3) */
+    .gesture-right {
+        width: 33.4%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+    }
+
+    .model-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        background: #f8f8f8;
+        border-bottom: 1px solid #e6e6e6;
+        flex-shrink: 0;
+    }
+    .model-toolbar label {
+        font-size: 13px;
+        color: #666;
+        white-space: nowrap;
+    }
+    .model-toolbar select {
+        height: 30px;
+        line-height: 30px;
+        border: 1px solid #d2d2d2;
+        border-radius: 2px;
+        padding: 0 8px;
+        font-size: 13px;
+        min-width: 160px;
+        background: #fff;
+    }
+    .model-toolbar .layui-btn {
+        height: 30px;
+        line-height: 30px;
+        padding: 0 12px;
+        font-size: 13px;
+    }
+    .model-toolbar .model-info {
+        font-size: 12px;
+        color: #999;
+        margin-left: auto;
+    }
+
+    .model-area {
+        flex: 1;
+        background: #1a1a2e;
+        position: relative;
+        overflow: hidden;
+    }
+    .model-area canvas {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100% !important;
+        height: 100% !important;
+    }
+    .model-loading {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        color: rgba(255,255,255,0.5);
+        font-size: 14px;
+        z-index: 1;
+    }
+
+    .translate-header {
+        padding: 14px 20px;
+        font-size: 16px;
+        font-weight: 600;
+        color: #333;
+        border-bottom: 1px solid #e6e6e6;
+        background: #f8f8f8;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .translate-header-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .translate-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0;
+    }
+    .translate-item {
+        display: flex;
+        align-items: flex-start;
+        padding: 12px 20px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .translate-item:hover { background: #f9f9ff; }
+    .translate-time {
+        color: #999;
+        font-size: 13px;
+        white-space: nowrap;
+        margin-right: 16px;
+        min-width: 70px;
+        line-height: 24px;
+    }
+    .translate-content {
+        font-size: 15px;
+        color: #333;
+        line-height: 24px;
+        word-break: break-all;
+    }
+    .translate-status {
+        padding: 10px 20px;
+        font-size: 13px;
+        color: #999;
+        border-top: 1px solid #e6e6e6;
+        background: #f8f8f8;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .status-dot {
+        display: inline-block;
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        background: #ccc;
+        margin-right: 6px;
+    }
+    .status-dot.online { background: #5fb878; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 左侧：3D骨骼模型 (2/3 宽度) -->
+<div class="gesture-left">
+    <div class="model-toolbar">
+        <label>骨骼模型：</label>
+        <select id="modelSelect"><option value="hand_set.glb">hand_set.glb（默认）</option></select>
+        <button class="layui-btn layui-btn-sm layui-btn-normal" id="uploadModelBtn">
+            <i class="layui-icon layui-icon-upload"></i> 上传模型
+        </button>
+        <button class="layui-btn layui-btn-sm layui-btn-danger" id="deleteModelBtn" style="display:none;">
+            <i class="layui-icon layui-icon-delete"></i> 删除
+        </button>
+        <input type="file" id="modelFileInput" accept=".glb,.gltf" style="display:none;">
+        <span class="model-info" id="modelInfo"></span>
+    </div>
+    <div class="model-area" id="modelArea">
+        <div class="model-loading" id="modelLoading">模型加载中...</div>
+    </div>
+</div>
+
+<!-- 右侧：实时翻译 (1/3 宽度) -->
+<div class="gesture-right">
+    <div class="translate-header">
+        <div class="translate-header-title">
+            <i class="layui-icon layui-icon-read"></i>
+            <span>实时翻译</span>
+        </div>
+        <button class="layui-btn layui-btn-sm layui-btn-primary" id="clearTranslateBtn">
+            <i class="layui-icon layui-icon-delete"></i> 清除
+        </button>
+    </div>
+    <div class="translate-list" id="translateList"></div>
+    <div class="translate-status" style="justify-content:flex-end;">
+        <button class="layui-btn layui-btn-sm layui-btn-normal" id="resetGestureBtn">
+            <i class="layui-icon layui-icon-refresh"></i> 复位手势
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="importmap">
+{
+    "imports": {
+        "three": "{{ url_for('static', filename='js/three/three.module.min.js') }}",
+        "three/addons/": "{{ url_for('static', filename='js/three/addons/') }}"
+    }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ==================== Madgwick 姿态融合滤波器 ====================
+class MadgwickFilter {
+    constructor(beta = 0.033, sampleFreq = 10) {
+        this.beta = beta;
+        this.sampleFreq = sampleFreq;
+        this.q0 = 1; this.q1 = 0; this.q2 = 0; this.q3 = 0;
+    }
+
+    update(ax, ay, az, gx, gy, gz) {
+        let q0 = this.q0, q1 = this.q1, q2 = this.q2, q3 = this.q3;
+        const halfT = 0.5 / this.sampleFreq;
+
+        let norm = Math.sqrt(ax * ax + ay * ay + az * az);
+        if (norm < 0.001) {
+            q0 += (-q1 * gx - q2 * gy - q3 * gz) * halfT;
+            q1 += (q0 * gx + q2 * gz - q3 * gy) * halfT;
+            q2 += (q0 * gy - q1 * gz + q3 * gx) * halfT;
+            q3 += (q0 * gz + q1 * gy - q2 * gx) * halfT;
+        } else {
+            ax /= norm; ay /= norm; az /= norm;
+            const _2q0 = 2*q0, _2q1 = 2*q1, _2q2 = 2*q2, _2q3 = 2*q3;
+            const _4q0 = 4*q0, _4q1 = 4*q1, _4q2 = 4*q2;
+            const _8q1 = 8*q1, _8q2 = 8*q2;
+            const q0q0 = q0*q0, q1q1 = q1*q1, q2q2 = q2*q2, q3q3 = q3*q3;
+
+            let s0 = _4q0*q2q2 + _2q2*ax + _4q0*q1q1 - _2q1*ay;
+            let s1 = _4q1*q3q3 - _2q3*ax + 4*q0q0*q1 - _2q0*ay - _4q1 + _8q1*q1q1 + _8q1*q2q2 + _4q1*az;
+            let s2 = 4*q0q0*q2 + _2q0*ax + _4q2*q3q3 - _2q3*ay - _4q2 + _8q2*q1q1 + _8q2*q2q2 + _4q2*az;
+            let s3 = 4*q1q1*q3 - _2q1*ax + 4*q2q2*q3 - _2q2*ay;
+
+            norm = 1 / Math.sqrt(s0*s0 + s1*s1 + s2*s2 + s3*s3);
+            s0 *= norm; s1 *= norm; s2 *= norm; s3 *= norm;
+
+            const qDot0 = 0.5*(-q1*gx - q2*gy - q3*gz) - this.beta*s0;
+            const qDot1 = 0.5*(q0*gx + q2*gz - q3*gy) - this.beta*s1;
+            const qDot2 = 0.5*(q0*gy - q1*gz + q3*gx) - this.beta*s2;
+            const qDot3 = 0.5*(q0*gz + q1*gy - q2*gx) - this.beta*s3;
+
+            q0 += qDot0 / this.sampleFreq;
+            q1 += qDot1 / this.sampleFreq;
+            q2 += qDot2 / this.sampleFreq;
+            q3 += qDot3 / this.sampleFreq;
+        }
+        const nq = 1 / Math.sqrt(q0*q0 + q1*q1 + q2*q2 + q3*q3);
+        this.q0 = q0*nq; this.q1 = q1*nq; this.q2 = q2*nq; this.q3 = q3*nq;
+    }
+
+    getQuaternion() { return { w: this.q0, x: this.q1, y: this.q2, z: this.q3 }; }
+    reset() { this.q0 = 1; this.q1 = 0; this.q2 = 0; this.q3 = 0; }
+}
+
+// ==================== 常量 & 状态 ====================
+const TOTAL_CHANNELS = 11;
+const DEVICES = ['left', 'right'];
+const GYRO_SCALE = 16.4;       // MPU6050 ±2000dps
+const ACCEL_SCALE = 16384.0;   // MPU6050 ±2g
+const GYRO_SCALE_ICM  = 65.5;  // ICM-20948 实际配置 ±500dps (寄存器 0x03)
+const ACCEL_SCALE_ICM = 8192.0; // ICM-20948 实际配置 ±4g (寄存器 0x03)
+const DEG2RAD = Math.PI / 180;
+const POLL_INTERVAL = 50;
+const SENSOR_DATA_RATE = 10;       // 开发板实际发送频率 10Hz
+const GYRO_DEADZONE_DEG  = 1.5;   // 陀螺仪死区 (deg/s)：低于此值视为静止，偏置归零
+const ROTATION_DEADZONE_RAD = 2.0 * Math.PI / 180; // 输出旋转死区 (2°)：校准后角度过小时归 identity
+
+// 每只手各 11 个滤波器和目标四元数
+const filters = {};
+const targetQuats = {};
+DEVICES.forEach(function(dev) {
+    filters[dev] = [];
+    targetQuats[dev] = [];
+    for (let i = 0; i < TOTAL_CHANNELS; i++) {
+        filters[dev].push(new MadgwickFilter(0.033, SENSOR_DATA_RATE));
+        targetQuats[dev].push(new THREE.Quaternion());
+    }
+});
+
+let channelBoneMap = { left: {}, right: {} };
+let bonesByName = {};
+let boneInitQuats = {};
+let lastDataTime = 0;
+let lastDataId = { left: -1, right: -1 };
+
+// 反向映射表: 骨骼名 → {dev, channel}，用于层级旋转时查找父骨骼对应的通道
+let boneToChanDev = {};
+function rebuildBoneToChanDev() {
+    boneToChanDev = {};
+    DEVICES.forEach(function(dev) {
+        const devMap = channelBoneMap[dev] || {};
+        for (let i = 0; i < TOTAL_CHANNELS; i++) {
+            const boneName = devMap['ch' + i];
+            if (boneName) boneToChanDev[boneName] = { dev: dev, channel: i };
+        }
+    });
+}
+
+// 校准逆四元数（匹配Blender: calib_q_inv = quaternionInverse(q_initial)，直接存逆）
+const calibInvQuats = {};
+const calibDone = {};
+const CALIB_DELAY = 50; // 50帧≈5秒，充分等待Madgwick在高beta下收敛后再捕获参考姿态
+const calibFrameCount = {};
+// 缓存每帧校准后的四元数供层级旋转复用（匹配Blender: q_cal = q_initial_inv * q_current）
+const calibratedQuats = {};
+DEVICES.forEach(function(dev) {
+    calibInvQuats[dev] = [];
+    calibDone[dev] = [];
+    calibFrameCount[dev] = [];
+    calibratedQuats[dev] = [];
+    for (let i = 0; i < TOTAL_CHANNELS; i++) {
+        calibInvQuats[dev].push(new THREE.Quaternion());
+        calibDone[dev].push(false);
+        calibFrameCount[dev].push(0);
+        calibratedQuats[dev].push(new THREE.Quaternion());
+    }
+});
+
+// 从 localStorage 加载映射（通道映射页面保存的）
+try {
+    const s = localStorage.getItem('imu_bone_mapping');
+    if (s) {
+        const parsed = JSON.parse(s);
+        // 兼容旧格式（无 left/right 层级）
+        if (parsed.left || parsed.right) {
+            channelBoneMap.left = parsed.left || {};
+            channelBoneMap.right = parsed.right || {};
+        } else {
+            channelBoneMap.left = parsed;
+        }
+    }
+} catch(e) {}
+rebuildBoneToChanDev();
+
+// ==================== Three.js 场景 ====================
+const container = document.getElementById('modelArea');
+const loadingEl = document.getElementById('modelLoading');
+
+const sz = { w: container.clientWidth || 800, h: container.clientHeight || 600 };
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
+const camera = new THREE.PerspectiveCamera(45, sz.w / sz.h, 0.01, 1000);
+camera.position.set(0, 0, 1);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(sz.w, sz.h);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.update();
+
+// 灯光
+scene.add(new THREE.AmbientLight(0xccddff, 0.4));
+const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+dirLight.position.set(5, 10, 5);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(1024, 1024);
+scene.add(dirLight);
+scene.add(new THREE.DirectionalLight(0xaabbff, 1.0).translateX(-5).translateY(5).translateZ(-5));
+scene.add(new THREE.DirectionalLight(0xffeedd, 0.6).translateY(3).translateZ(-8));
+scene.add(new THREE.DirectionalLight(0x8899aa, 0.3).translateY(-5));
+
+// ==================== 骨骼可视化 ====================
+let boneVizData = [];
+const jointGeo = new THREE.SphereGeometry(0.012, 16, 16);
+const jointMat = new THREE.MeshStandardMaterial({ color: 0x00ccff, emissive: 0x005566, metalness: 0.6, roughness: 0.3 });
+const boneCylMat = new THREE.MeshStandardMaterial({ color: 0x4488ff, emissive: 0x112244, metalness: 0.5, roughness: 0.4 });
+let boneGroup = null;
+
+function rebuildBoneViz(bones) {
+    if (boneGroup) scene.remove(boneGroup);
+    boneGroup = new THREE.Group();
+    boneVizData = [];
+    bones.forEach(function(bone) {
+        const sphere = new THREE.Mesh(jointGeo, jointMat);
+        sphere.castShadow = true;
+        boneGroup.add(sphere);
+        let cyl = null;
+        if (bone.parent && bone.parent.isBone) {
+            const cylGeo = new THREE.CylinderGeometry(0.005, 0.005, 1, 8);
+            cyl = new THREE.Mesh(cylGeo, boneCylMat);
+            cyl.castShadow = true;
+            boneGroup.add(cyl);
+        }
+        boneVizData.push({ bone, sphere, cyl });
+    });
+    scene.add(boneGroup);
+    updateBoneViz();
+}
+
+function updateBoneViz() {
+    const pos = new THREE.Vector3(), pPos = new THREE.Vector3();
+    const dir = new THREE.Vector3(), mid = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    boneVizData.forEach(function(item) {
+        item.bone.updateWorldMatrix(true, false);
+        pos.setFromMatrixPosition(item.bone.matrixWorld);
+        item.sphere.position.copy(pos);
+        if (item.cyl && item.bone.parent) {
+            item.bone.parent.updateWorldMatrix(true, false);
+            pPos.setFromMatrixPosition(item.bone.parent.matrixWorld);
+            dir.subVectors(pos, pPos);
+            const len = dir.length();
+            if (len > 0.001) {
+                item.cyl.visible = true;
+                item.cyl.scale.set(1, len, 1);
+                mid.addVectors(pPos, pos).multiplyScalar(0.5);
+                item.cyl.position.copy(mid);
+                item.cyl.quaternion.setFromUnitVectors(up, dir.clone().normalize());
+            } else { item.cyl.visible = false; }
+        }
+    });
+}
+
+// ==================== 加载 / 切换模型 ====================
+const loader = new GLTFLoader();
+let currentModel = null;
+let pollingStarted = false;
+let currentModelName = 'hand_set.glb';
+
+function loadModel(filename) {
+    // 显示加载提示
+    loadingEl.style.display = '';
+    loadingEl.textContent = '模型加载中...';
+
+    // 清理旧模型
+    if (currentModel) {
+        scene.remove(currentModel);
+        currentModel = null;
+    }
+    if (boneGroup) {
+        scene.remove(boneGroup);
+        boneGroup = null;
+    }
+    boneVizData = [];
+    bonesByName = {};
+    boneInitQuats = {};
+    window.handModel = null;
+    window.handBones = null;
+
+    // 重置滤波器和校准状态（双手）
+    DEVICES.forEach(function(dev) {
+        for (let i = 0; i < TOTAL_CHANNELS; i++) {
+            filters[dev][i].reset();
+            targetQuats[dev][i].identity();
+            calibInvQuats[dev][i].identity();
+            calibDone[dev][i] = false;
+            calibFrameCount[dev][i] = 0;
+            calibratedQuats[dev][i].identity();
+        }
+        lastDataId[dev] = -1;
+    });
+
+    const modelUrl = '/static/models/' + encodeURIComponent(filename);
+    loader.load(
+        modelUrl,
+        function(gltf) {
+            const model = gltf.scene;
+            scene.add(model);
+            currentModel = model;
+            currentModelName = filename;
+
+            const box = new THREE.Box3();
+            const bones = [];
+            model.traverse(function(child) {
+                if (child.isMesh || child.isSkinnedMesh) {
+                    child.updateWorldMatrix(true, false);
+                    const geo = child.geometry;
+                    if (geo) { geo.computeBoundingBox(); const mb = geo.boundingBox.clone(); mb.applyMatrix4(child.matrixWorld); box.union(mb); }
+                    if (child.material) {
+                        (Array.isArray(child.material) ? child.material : [child.material]).forEach(function(mat) {
+                            mat.transparent = true; mat.opacity = 0.45; mat.depthWrite = false;
+                        });
+                    }
+                }
+                if (child.isBone) {
+                    child.updateWorldMatrix(true, false);
+                    bones.push(child);
+                    const p = new THREE.Vector3(); p.setFromMatrixPosition(child.matrixWorld); box.expandByPoint(p);
+                }
+            });
+            bones.forEach(function(bone) { bonesByName[bone.name] = bone; boneInitQuats[bone.name] = bone.quaternion.clone(); });
+            rebuildBoneViz(bones);
+            window.handModel = model; window.handBones = bones;
+
+            const center = new THREE.Vector3();
+            let maxDim = 1;
+            if (!box.isEmpty()) { box.getCenter(center); const s = box.getSize(new THREE.Vector3()); maxDim = Math.max(s.x, s.y, s.z); }
+            controls.target.copy(center);
+            camera.position.set(center.x, center.y + maxDim * 1.2, center.z + maxDim * 0.6);
+            camera.lookAt(center); controls.update();
+            camera.near = 0.001; camera.far = maxDim * 100; camera.updateProjectionMatrix();
+            loadingEl.style.display = 'none';
+
+            // 更新模型信息
+            document.getElementById('modelInfo').textContent = '骨骼数: ' + bones.length;
+
+            if (!pollingStarted) { pollingStarted = true; startPolling(); }
+
+            // 保存选择到 localStorage
+            localStorage.setItem('selected_skeleton_model', filename);
+        },
+        function(xhr) { if (xhr.total > 0) loadingEl.textContent = '模型加载中... ' + Math.round(xhr.loaded / xhr.total * 100) + '%'; },
+        function(error) { loadingEl.textContent = '模型加载失败'; console.error('GLB load error:', error); }
+    );
+}
+
+// ==================== 模型列表与切换 ====================
+const modelSelect = document.getElementById('modelSelect');
+const deleteModelBtn = document.getElementById('deleteModelBtn');
+const uploadModelBtn = document.getElementById('uploadModelBtn');
+const modelFileInput = document.getElementById('modelFileInput');
+
+function refreshModelList(selectName) {
+    fetch('/api/models/list').then(r => r.json()).then(function(res) {
+        if (res.code !== 0) return;
+        modelSelect.innerHTML = '';
+        res.data.forEach(function(m) {
+            const opt = document.createElement('option');
+            opt.value = m.name;
+            opt.textContent = m.name + (m.is_default ? '（默认）' : '') +
+                ' (' + (m.size / 1024).toFixed(0) + ' KB)';
+            modelSelect.appendChild(opt);
+        });
+        if (selectName) modelSelect.value = selectName;
+        updateDeleteBtnVisibility();
+    }).catch(function() {});
+}
+
+function updateDeleteBtnVisibility() {
+    deleteModelBtn.style.display = modelSelect.value === 'hand_set.glb' ? 'none' : '';
+}
+
+modelSelect.addEventListener('change', function() {
+    updateDeleteBtnVisibility();
+    loadModel(modelSelect.value);
+});
+
+uploadModelBtn.addEventListener('click', function() { modelFileInput.click(); });
+
+modelFileInput.addEventListener('change', function() {
+    const file = modelFileInput.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+
+    loadingEl.style.display = '';
+    loadingEl.textContent = '正在上传模型...';
+
+    fetch('/api/models/upload', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(function(res) {
+            if (res.code === 0) {
+                refreshModelList(res.data.name);
+                loadModel(res.data.name);
+                layui.layer.msg('模型上传成功');
+            } else {
+                loadingEl.style.display = 'none';
+                layui.layer.msg(res.msg, { icon: 2 });
+            }
+        })
+        .catch(function() {
+            loadingEl.style.display = 'none';
+            layui.layer.msg('上传失败', { icon: 2 });
+        });
+    modelFileInput.value = '';
+});
+
+deleteModelBtn.addEventListener('click', function() {
+    const name = modelSelect.value;
+    if (name === 'hand_set.glb') return;
+    layui.layer.confirm('确定删除模型 "' + name + '" 吗？', { icon: 3, title: '确认' }, function(idx) {
+        fetch('/api/models/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name })
+        }).then(r => r.json()).then(function(res) {
+            layui.layer.close(idx);
+            if (res.code === 0) {
+                layui.layer.msg('删除成功');
+                refreshModelList('hand_set.glb');
+                loadModel('hand_set.glb');
+            } else {
+                layui.layer.msg(res.msg, { icon: 2 });
+            }
+        }).catch(function() { layui.layer.close(idx); layui.layer.msg('删除失败', { icon: 2 }); });
+    });
+});
+
+// 初始化：加载模型列表并加载上次选择的模型
+const savedModel = localStorage.getItem('selected_skeleton_model') || 'hand_set.glb';
+refreshModelList(savedModel);
+loadModel(savedModel);
+
+// ==================== 传感器轮询 + 姿态驱动 ====================
+function startPolling() { setInterval(pollSensorData, POLL_INTERVAL); }
+
+async function pollSensorData() {
+    // 同时轮询左右两只手的设备数据
+    for (const dev of DEVICES) {
+        try {
+            const resp = await fetch('/api/device/latest?device=' + dev);
+            if (!resp.ok) continue;
+            const json = await resp.json();
+            if (json.code !== 0 || !json.data) continue;
+            const data = json.data;
+            if (data.id === lastDataId[dev]) continue;
+            lastDataId[dev] = data.id;
+
+            // 设备数据格式: {"device":"left", "left":{"ch0":{ax,ay,...},...}}
+            const handData = data[dev];
+            if (!handData) continue;
+
+            for (let i = 0; i < TOTAL_CHANNELS; i++) {
+                const ch = handData['ch' + i];
+                if (!ch) continue;
+                // if (dev === 'right' && i === 7) continue;  // ch7 已修复，不再跳过
+
+                // 1. 陀螺仪死区：静止时偏置归零，阻断积分漂移
+                // ch10 = ICM-20948，实际量程 ±500dps/±4g，其余为 MPU6050 ±2000dps/±2g
+                const isICM = (i === 10);
+                const gScale = isICM ? GYRO_SCALE_ICM  : GYRO_SCALE;
+                const aScale = isICM ? ACCEL_SCALE_ICM : ACCEL_SCALE;
+                let gxDeg = ch.gx / gScale;
+                let gyDeg = ch.gy / gScale;
+                let gzDeg = ch.gz / gScale;
+                const gyroMag = Math.sqrt(gxDeg*gxDeg + gyDeg*gyDeg + gzDeg*gzDeg);
+                if (gyroMag < GYRO_DEADZONE_DEG) { gxDeg = 0; gyDeg = 0; gzDeg = 0; }
+
+                // 2. Madgwick 更新（高 beta 让加速度计持续纠偏）
+                filters[dev][i].update(
+                    ch.ax / aScale, ch.ay / aScale, ch.az / aScale,
+                    gxDeg * DEG2RAD, gyDeg * DEG2RAD, gzDeg * DEG2RAD
+                );
+
+                // 3. 累帧捕获参考姿态（等待滤波器充分收敛）
+                calibFrameCount[dev][i]++;
+                const rq = filters[dev][i].getQuaternion();
+                const sensorQ = new THREE.Quaternion(rq.x, rq.y, rq.z, rq.w);
+                if (!calibDone[dev][i] && calibFrameCount[dev][i] >= CALIB_DELAY) {
+                    calibInvQuats[dev][i].copy(sensorQ).invert();
+                    calibDone[dev][i] = true;
+                }
+
+                // 4. 应用校准 + 输出旋转死区（角度极小时归 identity，消除可见微抖）
+                if (calibDone[dev][i]) {
+                    calibratedQuats[dev][i].copy(calibInvQuats[dev][i]).multiply(sensorQ);
+                    const angle = 2 * Math.acos(Math.min(1, Math.abs(calibratedQuats[dev][i].w)));
+                    if (angle < ROTATION_DEADZONE_RAD) calibratedQuats[dev][i].set(0, 0, 0, 1);
+                }
+            }
+        } catch(e) {}
+    }
+    updateTargetQuaternions();
+}
+
+function updateTargetQuaternions() {
+    // 匹配Blender层级模式（DUAL_SENSOR_INDEPENDENT=False）
+    // 父骨骼：直接使用校准后四元数（calibratedQuats）
+    // 子骨骼：parent_cal_inv × child_cal（匹配Blender: q0_rel = q1_inv * q0）
+    const initQuat = new THREE.Quaternion();
+    const parentCalInv = new THREE.Quaternion();
+    const childRelative = new THREE.Quaternion();
+
+    // ---- 右手 ch7 软件合成（已注释，ch7 硬件已修复） ----
+    // (function synthRightCh7() {
+    //     const d = calibratedQuats['right'];
+    //     const done = calibDone['right'];
+    //     if (!done[5] || !done[9]) return;
+    //     const synth = d[5].clone().slerp(d[9], 0.5);
+    //     if (done[6]) synth.slerp(d[6], 0.15);
+    //     if (done[4]) synth.slerp(d[4], 0.053);
+    //     if (done[8]) synth.slerp(d[8], 0.053);
+    //     calibratedQuats['right'][7].copy(synth);
+    //     calibDone['right'][7] = true;
+    // })();
+
+    DEVICES.forEach(function(dev) {
+        const devMap = channelBoneMap[dev] || {};
+        for (let i = 0; i < TOTAL_CHANNELS; i++) {
+            const boneName = devMap['ch' + i];
+            if (!boneName || !bonesByName[boneName] || !calibDone[dev][i]) continue;
+
+            let finalDelta = calibratedQuats[dev][i].clone();
+
+            // 层级旋转：检查父骨骼是否也被传感器驱动
+            const bone = bonesByName[boneName];
+            if (bone && bone.parent && bone.parent.isBone) {
+                const parentInfo = boneToChanDev[bone.parent.name];
+                if (parentInfo && calibDone[parentInfo.dev][parentInfo.channel]) {
+                    // childRelative = parentCal⁻¹ × childCal（匹配Blender: q0_rel = q1_inv * q0）
+                    parentCalInv.copy(calibratedQuats[parentInfo.dev][parentInfo.channel]).invert();
+                    childRelative.copy(parentCalInv).multiply(calibratedQuats[dev][i]);
+                    finalDelta = childRelative.clone();
+                }
+            }
+
+            if (boneInitQuats[boneName]) {
+                initQuat.copy(boneInitQuats[boneName]);
+                targetQuats[dev][i].copy(initQuat).multiply(finalDelta);
+            } else {
+                targetQuats[dev][i].copy(finalDelta);
+            }
+        }
+    });
+}
+
+function interpolateBones() {
+    DEVICES.forEach(function(dev) {
+        const devMap = channelBoneMap[dev] || {};
+        for (let i = 0; i < TOTAL_CHANNELS; i++) {
+            const boneName = devMap['ch' + i];
+            if (!boneName || !bonesByName[boneName]) continue;
+            // 校准未完成前不驱动骨骼，防止被拉向 identity
+            if (!calibDone[dev][i]) continue;
+            bonesByName[boneName].quaternion.slerp(targetQuats[dev][i], 0.4);
+        }
+    });
+}
+
+
+// ==================== 复位手势 ====================
+function resetGesture() {
+    // 重置所有 Madgwick 滤波器和校准状态（双手，匹配Blender重启后重新校准的行为）
+    DEVICES.forEach(function(dev) {
+        for (let i = 0; i < TOTAL_CHANNELS; i++) {
+            filters[dev][i].reset();
+            targetQuats[dev][i].identity();
+            // 重置校准，重新等待CALIB_DELAY帧后捕获
+            calibInvQuats[dev][i].identity();
+            calibDone[dev][i] = false;
+            calibFrameCount[dev][i] = 0;
+            calibratedQuats[dev][i].identity();
+        }
+        lastDataId[dev] = -1;
+    });
+    // 恢复骨骼到初始姿态
+    for (const boneName in boneInitQuats) {
+        if (bonesByName[boneName]) {
+            bonesByName[boneName].quaternion.copy(boneInitQuats[boneName]);
+        }
+    }
+}
+
+document.getElementById('resetGestureBtn').addEventListener('click', resetGesture);
+
+// ==================== 渲染循环 ====================
+function onResize() {
+    const w = container.clientWidth, h = container.clientHeight;
+    if (w > 0 && h > 0) { camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); }
+}
+window.addEventListener('resize', onResize);
+new ResizeObserver(onResize).observe(container);
+
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    interpolateBones();
+    if (boneVizData.length > 0) updateBoneViz();
+    renderer.render(scene, camera);
+}
+animate();
+</script>
+
+<script>
+layui.use(['layer'], function() {
+    var recordCount = 0;
+
+    function resetTranslateList() {
+        var list = document.getElementById('translateList');
+        list.innerHTML = '';
+        recordCount = 0;
+    }
+
+    // timeStr 可选，传入则使用服务端时间（HH:MM:SS），否则用当前时间
+    window.addTranslateRecord = function(gesture, timeStr) {
+        var list = document.getElementById('translateList');
+        if (recordCount === 0) list.innerHTML = '';
+        var displayTime = timeStr || new Date().toLocaleTimeString('zh-CN', {hour12: false});
+        var item = document.createElement('div');
+        item.className = 'translate-item';
+        item.innerHTML = '<span class="translate-time">' + displayTime + '</span>' +
+                         '<span class="translate-content">' + gesture + '</span>';
+        list.appendChild(item);
+        list.scrollTop = list.scrollHeight;
+        recordCount++;
+    };
+
+    document.getElementById('clearTranslateBtn').addEventListener('click', function() {
+        resetTranslateList();
+    });
+
+    // ========== 实时翻译轮询（ext_cmd 帧 + translated_text 帧） ==========
+    var lastExtCmdSeq = 0;
+
+    function pollExtCmd() {
+        fetch('/api/ext_cmd/list?limit=50&after_seq=' + lastExtCmdSeq)
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.code !== 0 || !res.data || res.data.length === 0) return;
+                // 按 seq 从小到大排序，保证显示顺序正确
+                var items = res.data.slice().sort(function(a, b) {
+                    return (a.seq || 0) - (b.seq || 0);
+                });
+                items.forEach(function(item) {
+                    // 过滤语音模块状态播报，不在前端实时翻译区显示
+                    if (item.data === 'rock已就绪') {
+                        if ((item.seq || 0) > lastExtCmdSeq) {
+                            lastExtCmdSeq = item.seq;
+                        }
+                        return;
+                    }
+                    // translated_text 类型使用本机时间；其他 ext_cmd 沿用服务端时间
+                    var timeStr = (item.type === 'translated_text')
+                        ? new Date().toLocaleTimeString('zh-CN', {hour12: false})
+                        : item.recv_time;
+                    window.addTranslateRecord(item.data, timeStr);
+                    if ((item.seq || 0) > lastExtCmdSeq) {
+                        lastExtCmdSeq = item.seq;
+                    }
+                });
+            })
+            .catch(function() {});
+    }
+
+    setInterval(pollExtCmd, 1000);
+    pollExtCmd();
+
+    // 双开发板状态已通过 module script 中的 pollDeviceStatus 更新
+});
+</script>
+{% endblock %}

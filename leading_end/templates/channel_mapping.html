@@ -1,0 +1,526 @@
+{% extends "base.html" %}
+
+{% block title %}通道映射 - 手套数据采集系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .layui-body { overflow: hidden; }
+    .layui-body > .container {
+        padding: 8px 10px;
+        max-width: none;
+        height: calc(100vh - 60px - 44px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* 顶部标题 + 按钮栏 */
+    .mapping-toolbar {
+        padding: 6px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #fff;
+        border-radius: 4px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+        margin-bottom: 8px;
+        flex-shrink: 0;
+    }
+    .mapping-toolbar h3 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: #333;
+    }
+    .mapping-toolbar .btn-group {
+        display: flex;
+        gap: 8px;
+    }
+
+    /* 双手并排 */
+    .hands-row {
+        display: flex;
+        gap: 8px;
+        flex: 1;
+        min-height: 0;
+    }
+
+    /* 每只手的面板 */
+    .hand-panel {
+        flex: 1;
+        min-width: 0;
+        background: #fff;
+        border-radius: 4px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+        display: flex;
+        flex-direction: column;
+    }
+    .hand-header {
+        padding: 6px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        border-bottom: 1px solid #e6e6e6;
+        background: #f8f8f8;
+        border-radius: 4px 4px 0 0;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .hand-header .tag-left { color: #1E9FFF; }
+    .hand-header .tag-right { color: #FF5722; }
+    .hand-header .dev-dot {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        background: #ddd;
+        flex-shrink: 0;
+    }
+    .hand-header .dev-dot.online { background: #5fb878; }
+    .hand-header .dev-badge {
+        font-size: 11px;
+        background: #e3f2fd;
+        color: #1565c0;
+        padding: 1px 6px;
+        border-radius: 3px;
+        margin-left: auto;
+    }
+
+    /* 面板内映射区：两列 */
+    .mapping-content {
+        flex: 1;
+        display: flex;
+        gap: 0;
+        padding: 8px 10px;
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    /* 每个通道组 */
+    .ch-group {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+    .ch-group + .ch-group {
+        margin-left: 10px;
+        padding-left: 10px;
+        border-left: 1px solid #eee;
+    }
+    .ch-group-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #555;
+        margin-bottom: 8px;
+        padding-bottom: 4px;
+        border-bottom: 2px solid #1e88e5;
+    }
+    .ch-group-title .tag {
+        display: inline-block;
+        background: #e3f2fd;
+        color: #1565c0;
+        padding: 1px 6px;
+        border-radius: 3px;
+        font-size: 10px;
+        margin-left: 4px;
+    }
+
+    /* 子分组标题与分隔 */
+    .ch-sub-title {
+        font-size: 11px;
+        color: #888;
+        margin-bottom: 4px;
+    }
+    .ch-sub-title .tag {
+        display: inline-block;
+        background: #e3f2fd;
+        color: #1565c0;
+        padding: 1px 6px;
+        border-radius: 3px;
+        font-size: 10px;
+    }
+    .ch-sub-divider {
+        height: 1px;
+        background: #e6e6e6;
+        margin: 8px 0;
+    }
+
+    /* 通道行 */
+    .ch-rows {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .ch-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .ch-status {
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: #ddd;
+        flex-shrink: 0;
+    }
+    .ch-status.bound { background: #1e88e5; }
+    .ch-label {
+        min-width: 30px;
+        font-family: 'Consolas', monospace;
+        font-size: 12px;
+        font-weight: 600;
+        color: #1e88e5;
+    }
+    /* Layui下拉框适配 */
+    .ch-row .layui-form-select {
+        flex: 1;
+        min-width: 0;
+    }
+    .ch-row .layui-form-select .layui-input {
+        height: 26px;
+        line-height: 26px;
+        font-size: 12px;
+        border-radius: 3px;
+    }
+    .ch-row .layui-form-select .layui-edge {
+        top: 10px;
+    }
+    .ch-row .layui-form-select dl {
+        max-height: 220px;
+    }
+
+    /* 固定映射标签（右手专用，不可编辑） */
+    .ch-fixed-label {
+        flex: 1;
+        font-size: 12px;
+        color: #37474f;
+        padding: 3px 8px;
+        background: #f0f4ff;
+        border: 1px solid #c5d8f6;
+        border-radius: 3px;
+        font-family: 'Consolas', monospace;
+        font-weight: 500;
+        line-height: 20px;
+        display: inline-block;
+    }
+
+    /* 底部提示 */
+    .mapping-tip {
+        padding: 6px 14px;
+        font-size: 12px;
+        color: #aaa;
+        flex-shrink: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 工具栏 -->
+<div class="mapping-toolbar">
+    <h3><i class="layui-icon layui-icon-set"></i> 通道-骨骼映射配置</h3>
+    <div class="btn-group">
+        <button class="layui-btn layui-btn-sm" id="btnSave">
+            <i class="layui-icon layui-icon-ok"></i> 保存映射
+        </button>
+        <button class="layui-btn layui-btn-sm layui-btn-primary" id="btnReset">
+            <i class="layui-icon layui-icon-refresh"></i> 重置全部
+        </button>
+        <button class="layui-btn layui-btn-sm layui-btn-warm" id="btnTest">
+            <i class="layui-icon layui-icon-play"></i> 测试实时数据
+        </button>
+    </div>
+</div>
+
+<!-- 双手并排 -->
+<div class="hands-row">
+    <!-- 左手 -->
+    <div class="hand-panel">
+        <div class="hand-header">
+            <span class="dev-dot" id="dotLeft"></span>
+            <i class="layui-icon layui-icon-release tag-left"></i> 左手开发板
+            <span class="dev-badge">left</span>
+        </div>
+        <div class="mapping-content layui-form" id="panelLeft">
+            <p style="color:#999; text-align:center; width:100%; padding:40px 0;">正在加载骨骼数据...</p>
+        </div>
+    </div>
+    <!-- 右手 -->
+    <div class="hand-panel">
+        <div class="hand-header">
+            <span class="dev-dot" id="dotRight"></span>
+            <i class="layui-icon layui-icon-release tag-right"></i> 右手开发板
+            <span class="dev-badge">right</span>
+        </div>
+        <div class="mapping-content layui-form" id="panelRight">
+            <p style="color:#999; text-align:center; width:100%; padding:40px 0;">正在加载骨骼数据...</p>
+        </div>
+    </div>
+</div>
+
+<!-- 底部提示 -->
+<div class="mapping-tip">
+    提示：分别为左手和右手开发板配置通道映射，选择骨骼后点击「保存映射」，然后前往「实时翻译」页面查看效果。映射配置保存在浏览器本地。
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="importmap">
+{
+    "imports": {
+        "three": "{{ url_for('static', filename='js/three/three.module.min.js') }}",
+        "three/addons/": "{{ url_for('static', filename='js/three/addons/') }}"
+    }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const TOTAL_CHANNELS = 11;
+const DEVICES = ['left', 'right'];
+
+// 右手通道固定映射（不可更改）
+const RIGHT_FIXED_MAP = {
+    ch0:  'FingerA3R',
+    ch1:  'FingerA2R',
+    ch2:  'FingerB3R',
+    ch3:  'FingerB2R',
+    ch4:  'FingerC3R',
+    ch5:  'FingerC2R',
+    ch6:  'FingerD3R',
+    ch7:  'FingerD2R',
+    ch8:  'FingerE3R',
+    ch9:  'FingerE2R',
+    ch10: 'HandR'
+};
+const panels = {
+    left: document.getElementById('panelLeft'),
+    right: document.getElementById('panelRight')
+};
+
+// ==================== 设备在线状态轮询 ====================
+function pollDeviceOnline() {
+    fetch('/api/device/list').then(function(r) { return r.json(); }).then(function(res) {
+        if (res.code !== 0) return;
+        var onlineIds = (res.data || []).map(function(d) { return d.device_id; });
+        document.getElementById('dotLeft').className = 'dev-dot' + (onlineIds.indexOf('left') >= 0 ? ' online' : '');
+        document.getElementById('dotRight').className = 'dev-dot' + (onlineIds.indexOf('right') >= 0 ? ' online' : '');
+    }).catch(function() {});
+}
+pollDeviceOnline();
+setInterval(pollDeviceOnline, 3000);
+
+// ==================== 加载骨骼 ====================
+const loader = new GLTFLoader();
+loader.load(
+    "{{ url_for('static', filename='models/hand_set.glb') }}",
+    function(gltf) {
+        const boneNames = [];
+        gltf.scene.traverse(function(child) {
+            if (child.isBone) boneNames.push(child.name);
+        });
+        initMappingForms(boneNames);
+    },
+    null,
+    function(error) {
+        DEVICES.forEach(function(dev) {
+            panels[dev].innerHTML =
+                '<p style="color:#f00; text-align:center; width:100%; padding:40px 0;">骨骼数据加载失败</p>';
+        });
+    }
+);
+
+// ==================== 构建双手映射表单 ====================
+function initMappingForms(boneNames) {
+    // 自动将右手固定映射持久化到 localStorage，确保实时翻译页面可直接使用
+    // ch7 为可编辑通道，保留已存的用户选择
+    (function() {
+        var existing = { left: {}, right: {} };
+        try {
+            var s = localStorage.getItem('imu_bone_mapping');
+            if (s) {
+                var p = JSON.parse(s);
+                existing = (p.left || p.right) ? p : { left: p, right: {} };
+            }
+        } catch(e) {}
+        var savedRightCh7 = (existing.right || {}).ch7;
+        existing.right = Object.assign({}, RIGHT_FIXED_MAP);
+        // ch7 可编辑：有历史值则保留，否则沿用 RIGHT_FIXED_MAP 中的默认值
+        if (savedRightCh7 !== undefined) existing.right.ch7 = savedRightCh7;
+        localStorage.setItem('imu_bone_mapping', JSON.stringify(existing));
+    })();
+
+    // 从 localStorage 加载左手已保存的映射
+    var savedMap = { left: {}, right: {} };
+    try {
+        var s = localStorage.getItem('imu_bone_mapping');
+        if (s) {
+            var parsed = JSON.parse(s);
+            if (parsed.left || parsed.right) {
+                savedMap.left = parsed.left || {};
+                savedMap.right = parsed.right || {};
+            } else {
+                savedMap.left = parsed;
+            }
+        }
+    } catch(e) {}
+
+    // 按左手、右手、其他分组排序骨骼
+    var leftBones = [], rightBones = [], otherBones = [];
+    boneNames.forEach(function(name) {
+        if (name.endsWith('.L')) leftBones.push(name);
+        else if (name.endsWith('.R')) rightBones.push(name);
+        else otherBones.push(name);
+    });
+
+    function buildOptions(saved) {
+        var opts = '<option value="">-- 未绑定 --</option>';
+        if (leftBones.length) {
+            opts += '<optgroup label="左手 (Left)">';
+            leftBones.forEach(function(name) {
+                opts += '<option value="' + name + '"' + (name === saved ? ' selected' : '') + '>' + name + '</option>';
+            });
+            opts += '</optgroup>';
+        }
+        if (rightBones.length) {
+            opts += '<optgroup label="右手 (Right)">';
+            rightBones.forEach(function(name) {
+                opts += '<option value="' + name + '"' + (name === saved ? ' selected' : '') + '>' + name + '</option>';
+            });
+            opts += '</optgroup>';
+        }
+        if (otherBones.length) {
+            opts += '<optgroup label="其他">';
+            otherBones.forEach(function(name) {
+                opts += '<option value="' + name + '"' + (name === saved ? ' selected' : '') + '>' + name + '</option>';
+            });
+            opts += '</optgroup>';
+        }
+        return opts;
+    }
+
+    // 两列分组：I2C1 一列，I2C2（TCA9548A #2 + MPU9250）合并为一列
+    var groups = [
+        { title: 'I2C1 - TCA9548A #1', subgroups: [
+            { subtitle: '', tag: '6-DOF', channels: [0,1,2,3,4,5,6,7] }
+        ]},
+        { title: 'I2C2', subgroups: [
+            { subtitle: 'TCA9548A #2', tag: '6-DOF', channels: [8,9] },
+            { subtitle: 'MPU9250', tag: '9-DOF', channels: [10] }
+        ]},
+    ];
+
+    // 为每个设备面板生成通道映射
+    DEVICES.forEach(function(dev) {
+        var panel = panels[dev];
+        var devSaved = savedMap[dev] || {};
+
+        var html = '';
+        groups.forEach(function(g) {
+            html += '<div class="ch-group">';
+            html += '<div class="ch-group-title">' + g.title + '</div>';
+            html += '<div class="ch-rows">';
+            g.subgroups.forEach(function(sg, idx) {
+                if (idx > 0) {
+                    html += '<div class="ch-sub-divider"></div>';
+                }
+                if (sg.subtitle) {
+                    html += '<div class="ch-sub-title">' + sg.subtitle + ' <span class="tag">' + sg.tag + '</span></div>';
+                } else {
+                    html += '<div class="ch-sub-title"><span class="tag">' + sg.tag + '</span></div>';
+                }
+                sg.channels.forEach(function(i) {
+                    var chKey = 'ch' + i;
+                    var isRightEditable = (dev === 'right' && chKey === 'ch7');
+                    html += '<div class="ch-row">';
+                    if (dev === 'right' && !isRightEditable) {
+                        // 右手固定通道：直接显示标签
+                        var fixedName = RIGHT_FIXED_MAP[chKey] || '';
+                        html += '<span class="ch-status bound" id="status_' + dev + '_' + chKey + '"></span>';
+                        html += '<span class="ch-label">' + chKey + '</span>';
+                        html += '<span class="ch-fixed-label">' + fixedName + '</span>';
+                    } else {
+                        // 左手全部通道 + 右手 ch7（可编辑）：下拉选择框
+                        var savedVal = devSaved[chKey] || '';
+                        html += '<span class="ch-status' + (savedVal ? ' bound' : '') + '" id="status_' + dev + '_' + chKey + '"></span>';
+                        html += '<span class="ch-label">' + chKey + '</span>';
+                        html += '<select class="ch-select" lay-search lay-filter="chBoneMap_' + dev + '" data-dev="' + dev + '" data-ch="' + chKey + '">';
+                        html += buildOptions(savedVal);
+                        html += '</select>';
+                    }
+                    html += '</div>';
+                });
+            });
+            html += '</div></div>';
+        });
+
+        panel.innerHTML = html;
+    });
+
+    // 使用 Layui 渲染下拉框
+    layui.use(['form', 'layer'], function() {
+        var form = layui.form;
+        form.render('select');
+
+        DEVICES.forEach(function(dev) {
+            form.on('select(chBoneMap_' + dev + ')', function(data) {
+                var chKey = data.elem.getAttribute('data-ch');
+                var statusEl = document.getElementById('status_' + dev + '_' + chKey);
+                if (statusEl) statusEl.className = 'ch-status' + (data.value ? ' bound' : '');
+            });
+        });
+    });
+
+    // 保存
+    document.getElementById('btnSave').addEventListener('click', function() {
+        var map = readAllMappings();
+        localStorage.setItem('imu_bone_mapping', JSON.stringify(map));
+        layui.layer.msg('映射配置已保存（左手 + 右手）', { icon: 1, time: 1500 });
+    });
+
+    // 重置左手全部 + 右手 ch7（其他右手通道固定不变）
+    document.getElementById('btnReset').addEventListener('click', function() {
+        panels['left'].querySelectorAll('select.ch-select').forEach(function(sel) { sel.selectedIndex = 0; });
+        panels['left'].querySelectorAll('.ch-status').forEach(function(el) { el.className = 'ch-status'; });
+        // 重置右手 ch7 下拉框
+        var ch7Sel = panels['right'].querySelector('select.ch-select[data-ch="ch7"]');
+        if (ch7Sel) ch7Sel.selectedIndex = 0;
+        var ch7Status = document.getElementById('status_right_ch7');
+        if (ch7Status) ch7Status.className = 'ch-status';
+        // 保存：右手 ch7 清空，其他右手通道保持固定映射
+        var saved = { left: {}, right: Object.assign({}, RIGHT_FIXED_MAP) };
+        delete saved.right.ch7;
+        localStorage.setItem('imu_bone_mapping', JSON.stringify(saved));
+        layui.form.render('select');
+        layui.layer.msg('可编辑通道已重置（右手 ch7 已清空，其他右手通道固定不变）', { icon: 0, time: 2000 });
+    });
+
+    // 测试 - 先保存再跳转
+    document.getElementById('btnTest').addEventListener('click', function() {
+        var map = readAllMappings();
+        localStorage.setItem('imu_bone_mapping', JSON.stringify(map));
+        window.location.href = "{{ url_for('main.real_time_translate') }}";
+    });
+}
+
+// 读取全部映射（双手）：左手 + 右手ch7 读取下拉框，右手其他通道使用固定映射
+function readAllMappings() {
+    var map = { left: {}, right: {} };
+    // 先填充右手固定通道（ch7 除外）
+    Object.keys(RIGHT_FIXED_MAP).forEach(function(chKey) {
+        if (chKey !== 'ch7') map.right[chKey] = RIGHT_FIXED_MAP[chKey];
+    });
+    // 再从下拉框读取左手全部 + 右手 ch7
+    document.querySelectorAll('.ch-select').forEach(function(sel) {
+        var dev = sel.getAttribute('data-dev');
+        var ch = sel.getAttribute('data-ch');
+        if (sel.value && map[dev] !== undefined) map[dev][ch] = sel.value;
+    });
+    return map;
+}
+</script>
+
+<script>
+layui.use(['layer', 'form'], function() {});
+</script>
+{% endblock %}

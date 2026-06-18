@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}界面管理 - 边缘端双向手语翻译系统{% endblock %}
+
+{% block content %}
+<div class="layui-row layui-col-space15">
+    <div class="layui-col-md12">
+        <div class="card">
+            <div class="card-title">界面管理 - 侧边栏菜单配置</div>
+
+            <table class="layui-table" id="menu-table" lay-filter="menuTable"></table>
+        </div>
+    </div>
+</div>
+
+<!-- 操作栏模板（恢复上移/下移按钮） -->
+<script type="text/html" id="menuBarTpl">
+    <a class="layui-btn layui-btn-xs" lay-event="edit">
+        <i class="layui-icon layui-icon-edit"></i> 编辑
+    </a>
+    <a class="layui-btn layui-btn-xs layui-btn-warm" lay-event="moveUp">
+        <i class="layui-icon layui-icon-up"></i> 上移
+    </a>
+    <a class="layui-btn layui-btn-xs layui-btn-warm" lay-event="moveDown">
+        <i class="layui-icon layui-icon-down"></i> 下移
+    </a>
+    {% raw %}{{# if(!d.is_system){ }}{% endraw %}
+    <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">
+        <i class="layui-icon layui-icon-delete"></i> 删除
+    </a>
+    {% raw %}{{# } }}{% endraw %}
+</script>
+
+<!-- 可见性开关模板 -->
+<script type="text/html" id="switchTpl">
+    {% raw %}{{# if(d.endpoint === 'main.menu_manage'){ }}{% endraw %}
+    <input type="checkbox" name="is_visible" value="{% raw %}{{d.id}}{% endraw %}"
+           lay-skin="switch" lay-text="显示|隐藏" checked disabled>
+    {% raw %}{{# } else { }}{% endraw %}
+    <input type="checkbox" name="is_visible" value="{% raw %}{{d.id}}{% endraw %}"
+           lay-skin="switch" lay-text="显示|隐藏" lay-filter="visibleSwitch"
+           {% raw %}{{ d.is_visible ? 'checked' : '' }}{% endraw %}>
+    {% raw %}{{# } }}{% endraw %}
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+layui.use(['table', 'layer', 'form', 'element'], function() {
+    var table = layui.table;
+    var layer = layui.layer;
+    var form = layui.form;
+    var element = layui.element;
+
+    // 渲染菜单管理表格
+    table.render({
+        elem: '#menu-table',
+        id: 'menuTableId',
+        url: '/api/menu/list?top_level=1',
+        cols: [[
+            {field: 'name', title: '菜单名称', minWidth: 150},
+            {field: 'is_visible', title: '是否显示', width: 110, templet: '#switchTpl'},
+            {title: '操作', width: 260, toolbar: '#menuBarTpl'}
+        ]],
+        page: false,
+        text: { none: '暂无菜单数据' }
+    });
+
+    // ========== 刷新左侧侧边栏 ==========
+    function refreshSidebar() {
+        fetch('/api/menu/list')
+            .then(function(res) { return res.json(); })
+            .then(function(res) {
+                if (res.code !== 0) return;
+                var allItems = res.data;
+                var nav = document.querySelector('.layui-side .layui-nav-tree');
+                if (!nav) return;
+
+                var currentEndpoint = nav.querySelector('.layui-this a, .layui-nav-child .layui-this a');
+                var currentHref = currentEndpoint ? currentEndpoint.getAttribute('href') : '';
+
+                // 分离顶级菜单和子菜单
+                var topItems = allItems.filter(function(item) { return !item.parent_id && item.is_visible; });
+                var childMap = {};
+                allItems.forEach(function(item) {
+                    if (item.parent_id && item.is_visible) {
+                        if (!childMap[item.parent_id]) childMap[item.parent_id] = [];
+                        childMap[item.parent_id].push(item);
+                    }
+                });
+
+                var html = '';
+                for (var i = 0; i < topItems.length; i++) {
+                    var item = topItems[i];
+                    var children = childMap[item.id] || [];
+                    if (children.length > 0) {
+                        // 有子菜单：判断当前页面是否在子菜单中
+                        var childActive = children.some(function(c) { return c.url === currentHref; });
+                        html += '<li class="layui-nav-item' + (childActive ? ' layui-nav-itemed' : '') + '">';
+                        html += '<a href="javascript:;">';
+                        html += (item.icon ? '<i class="layui-icon ' + item.icon + '"></i> ' : '') + item.name;
+                        html += '</a><dl class="layui-nav-child">';
+                        for (var j = 0; j < children.length; j++) {
+                            var child = children[j];
+                            var isChildActive = (child.url && child.url === currentHref) ? ' class="layui-this"' : '';
+                            html += '<dd' + isChildActive + '><a href="' + child.url + '">' + child.name + '</a></dd>';
+                        }
+                        html += '</dl></li>';
+                    } else {
+                        // 无子菜单
+                        var isActive = (item.url && item.url === currentHref) ? ' layui-this' : '';
+                        html += '<li class="layui-nav-item' + isActive + '">'
+                             + '<a href="' + item.url + '">'
+                             + (item.icon ? '<i class="layui-icon ' + item.icon + '"></i> ' : '')
+                             + item.name
+                             + '</a></li>';
+                    }
+                }
+                nav.innerHTML = html;
+                layui.element.init();
+            });
+    }
+
+    // 监听可见性开关
+    form.on('switch(visibleSwitch)', function(obj) {
+        var menuId = parseInt(this.value);
+        var isVisible = obj.elem.checked;
+        fetch('/api/menu/update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id: menuId, is_visible: isVisible})
+        }).then(function(res){ return res.json(); })
+          .then(function(data) {
+            if (data.code === 0) {
+                layer.msg(isVisible ? '已显示' : '已隐藏');
+                refreshSidebar();
+            } else {
+                layer.msg(data.msg, {icon: 2});
+                obj.elem.checked = !isVisible;
+                form.render('checkbox');
+            }
+        });
+    });
+
+    // 监听工具栏事件
+    table.on('tool(menuTable)', function(obj) {
+        var data = obj.data;
+
+        if (obj.event === 'edit') {
+            layer.open({
+                type: 1,
+                title: '重命名菜单项',
+                area: ['380px', '220px'],
+                content: '<div style="padding: 20px 30px 0;">' +
+                    '<form class="layui-form" lay-filter="editForm">' +
+                    '<div class="layui-form-item">' +
+                    '  <label class="layui-form-label">名称</label>' +
+                    '  <div class="layui-input-block"><input type="text" name="name" value="' + data.name + '" class="layui-input" required></div>' +
+                    '</div>' +
+                    '<div class="layui-form-item">' +
+                    '  <div class="layui-input-block"><button class="layui-btn" lay-submit lay-filter="saveEdit">保存</button></div>' +
+                    '</div>' +
+                    '</form></div>',
+                success: function(layero, index) {
+                    form.render(null, 'editForm');
+                    form.on('submit(saveEdit)', function(formData) {
+                        fetch('/api/menu/update', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                id: data.id,
+                                name: formData.field.name
+                            })
+                        }).then(function(res){ return res.json(); })
+                          .then(function(resp) {
+                            if (resp.code === 0) {
+                                layer.close(index);
+                                table.reloadData('menuTableId');
+                                refreshSidebar();
+                                layer.msg('重命名成功');
+                            } else {
+                                layer.msg(resp.msg, {icon: 2});
+                            }
+                        });
+                        return false;
+                    });
+                }
+            });
+        }
+        else if (obj.event === 'moveUp' || obj.event === 'moveDown') {
+            var allData = table.getData('menuTableId');
+            var currentIdx = -1;
+            for (var i = 0; i < allData.length; i++) {
+                if (allData[i].id === data.id) { currentIdx = i; break; }
+            }
+            var swapIdx = (obj.event === 'moveUp') ? currentIdx - 1 : currentIdx + 1;
+            if (swapIdx < 0 || swapIdx >= allData.length) {
+                layer.msg('已经到顶/底了', {icon: 0});
+                return;
+            }
+            var currentSort = allData[currentIdx].sort_order;
+            var swapSort = allData[swapIdx].sort_order;
+            if (currentSort === swapSort) {
+                swapSort = (obj.event === 'moveUp') ? currentSort - 1 : currentSort + 1;
+            }
+            Promise.all([
+                fetch('/api/menu/update', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({id: data.id, sort_order: swapSort})
+                }),
+                fetch('/api/menu/update', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({id: allData[swapIdx].id, sort_order: currentSort})
+                })
+            ]).then(function() {
+                table.reloadData('menuTableId');
+                refreshSidebar();
+                layer.msg('排序已更新');
+            });
+        }
+        else if (obj.event === 'del') {
+            layer.confirm('确定删除该菜单项吗？', {icon: 3, title: '提示'}, function(index) {
+                fetch('/api/menu/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({id: data.id})
+                }).then(function(res){ return res.json(); })
+                  .then(function(resp) {
+                    if (resp.code === 0) {
+                        obj.del();
+                        layer.close(index);
+                        refreshSidebar();
+                        layer.msg('删除成功');
+                    } else {
+                        layer.msg(resp.msg, {icon: 2});
+                    }
+                });
+            });
+        }
+    });
+
+});
+</script>
+{% endblock %}

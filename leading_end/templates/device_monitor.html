@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+
+{% block title %}设备数据监控 - 手套数据采集系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 整页不滚动 */
+    .layui-body { overflow: hidden; }
+    .layui-body > .container {
+        padding: 8px 10px;
+        max-width: none;
+        height: calc(100vh - 60px - 44px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* 顶部状态栏 - 紧凑 */
+    .monitor-status {
+        background: #fff;
+        border-radius: 4px;
+        padding: 6px 14px;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+        flex-shrink: 0;
+        font-size: 13px;
+    }
+    .status-dot {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        background: #ccc;
+        margin-right: 8px;
+    }
+    .status-dot.online { background: #5FB878; }
+    .status-dot.offline { background: #FF5722; }
+
+    /* 双手并排 - 占满剩余高度 */
+    .hands-row {
+        display: flex;
+        gap: 8px;
+        flex: 1;
+        min-height: 0;
+    }
+    .hand-panel {
+        flex: 1;
+        min-width: 0;
+        background: #fff;
+        border-radius: 4px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+        display: flex;
+        flex-direction: column;
+    }
+    .hand-header {
+        padding: 6px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        border-bottom: 1px solid #e6e6e6;
+        background: #f8f8f8;
+        border-radius: 4px 4px 0 0;
+        flex-shrink: 0;
+    }
+    .hand-header .tag-left { color: #1E9FFF; }
+    .hand-header .tag-right { color: #FF5722; }
+
+    /* 紧凑表格 */
+    .ch-table-wrap {
+        flex: 1;
+        padding: 4px;
+    }
+    table.ch-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        table-layout: fixed;
+    }
+    table.ch-table th,
+    table.ch-table td {
+        padding: 3px 4px;
+        text-align: center;
+        border: 1px solid #eee;
+        white-space: nowrap;
+        overflow: hidden;
+    }
+    table.ch-table thead th {
+        background: #f0f5ff;
+        font-weight: 600;
+        color: #555;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+    table.ch-table thead th.col-ch {
+        width: 42px;
+        background: #e8eef8;
+    }
+    table.ch-table thead th.col-accel { background: #e8f5e9; color: #2e7d32; }
+    table.ch-table thead th.col-gyro  { background: #fff3e0; color: #e65100; }
+    table.ch-table thead th.col-mag   { background: #e3f2fd; color: #1565c0; }
+
+    table.ch-table tbody tr:hover {
+        background: #f5f7ff;
+    }
+    table.ch-table tbody td {
+        font-family: 'Consolas', 'Monaco', monospace;
+        color: #333;
+    }
+    table.ch-table tbody td.ch-name {
+        font-family: inherit;
+        font-weight: 600;
+        background: #fafafa;
+        color: #555;
+    }
+    /* ch10 行高亮 */
+    table.ch-table tbody tr.row-ch10 {
+        background: #fffde7;
+    }
+    table.ch-table tbody tr.row-ch10:hover {
+        background: #fff9c4;
+    }
+    /* 磁力计列无数据时 */
+    table.ch-table tbody td.mag-empty {
+        color: #ddd;
+    }
+
+    /* 电池状态徽章 */
+    .battery-badge {
+        float: right;
+        font-size: 11px;
+        font-weight: normal;
+        padding: 1px 8px;
+        border-radius: 8px;
+        background: #f0f0f0;
+        color: #aaa;
+        letter-spacing: 0.3px;
+    }
+    .battery-badge.bat-high { background: #e8f5e9; color: #2e7d32; }
+    .battery-badge.bat-mid  { background: #fff8e1; color: #f57f17; }
+    .battery-badge.bat-low  { background: #fce4ec; color: #c62828; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 连接状态 -->
+<div class="monitor-status">
+    <div class="status-dot" id="statusDotLeft"></div>
+    <span id="statusTextLeft">左手: 等待连接...</span>
+    <span style="width:24px;"></span>
+    <div class="status-dot" id="statusDotRight"></div>
+    <span id="statusTextRight">右手: 等待连接...</span>
+    <span style="margin-left:auto; display:flex; align-items:center; gap:12px;">
+        <span style="color:#999; font-size:12px;" id="pollInfo">TCP 端口: 8266</span>
+        <button class="layui-btn layui-btn-sm layui-btn-normal" id="refreshStatusBtn">
+            <i class="layui-icon layui-icon-refresh"></i> 刷新状态
+        </button>
+    </span>
+</div>
+
+<!-- 左手 / 右手 -->
+<div class="hands-row">
+    <!-- 左手 -->
+    <div class="hand-panel">
+        <div class="hand-header">
+            <i class="layui-icon layui-icon-release tag-left"></i> 左手 (Left)
+            <span class="battery-badge" id="batteryLeft">-- mV | --%</span>
+        </div>
+        <div class="ch-table-wrap">
+            <table class="ch-table" id="tableLeft"></table>
+        </div>
+    </div>
+    <!-- 右手 -->
+    <div class="hand-panel">
+        <div class="hand-header">
+            <i class="layui-icon layui-icon-release tag-right"></i> 右手 (Right)
+            <span class="battery-badge" id="batteryRight">-- mV | --%</span>
+        </div>
+        <div class="ch-table-wrap">
+            <table class="ch-table" id="tableRight"></table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+layui.use([], function() {
+    var POLL_INTERVAL = 100;
+
+    var FIELDS = ['ax','ay','az','gx','gy','gz','mx','my','mz'];
+
+    // ===== 生成表格 HTML =====
+    function buildTable(tableId, handKey) {
+        var table = document.getElementById(tableId);
+        var html = '<thead><tr>';
+        html += '<th class="col-ch">通道</th>';
+        html += '<th class="col-accel">ax</th><th class="col-accel">ay</th><th class="col-accel">az</th>';
+        html += '<th class="col-gyro">gx</th><th class="col-gyro">gy</th><th class="col-gyro">gz</th>';
+        html += '<th class="col-mag">mx</th><th class="col-mag">my</th><th class="col-mag">mz</th>';
+        html += '</tr></thead><tbody>';
+
+        for (var i = 0; i <= 10; i++) {
+            var chName = 'ch' + i;
+            var rowClass = (i === 10) ? ' class="row-ch10"' : '';
+            html += '<tr' + rowClass + '>';
+            html += '<td class="ch-name">' + chName + '</td>';
+            for (var j = 0; j < FIELDS.length; j++) {
+                var fid = handKey + '_' + chName + '_' + FIELDS[j];
+                if (i < 10 && j >= 6) {
+                    // ch0~ch9 没有 mx/my/mz
+                    html += '<td class="mag-empty">-</td>';
+                } else {
+                    html += '<td id="' + fid + '">--</td>';
+                }
+            }
+            html += '</tr>';
+        }
+        html += '</tbody>';
+        table.innerHTML = html;
+    }
+
+    buildTable('tableLeft', 'L');
+    buildTable('tableRight', 'R');
+
+    // ===== 更新双开发板连接状态 =====
+    function updateDualStatus(deviceList) {
+        var onlineIds = {};
+        (deviceList || []).forEach(function(d) { onlineIds[d.device] = d; });
+
+        ['Left', 'Right'].forEach(function(label) {
+            var dev = label.toLowerCase();
+            var dotEl = document.getElementById('statusDot' + label);
+            var textEl = document.getElementById('statusText' + label);
+            var isOnline = !!onlineIds[dev];
+            dotEl.className = 'status-dot' + (isOnline ? ' online' : ' offline');
+            var prefix = (label === 'Left' ? '左手' : '右手') + ': ';
+            textEl.textContent = isOnline
+                ? prefix + '已连接' + (onlineIds[dev].addr ? ' (' + onlineIds[dev].addr + ')' : '')
+                : prefix + '等待连接...';
+        });
+    }
+
+    // ===== 预缓存所有 DOM 元素引用，避免每次 getElementById =====
+    var domCache = {};
+    ['L', 'R'].forEach(function(hk) {
+        for (var i = 0; i <= 10; i++) {
+            var maxF = (i < 10) ? 6 : 9;
+            for (var j = 0; j < maxF; j++) {
+                var fid = hk + '_ch' + i + '_' + FIELDS[j];
+                domCache[fid] = document.getElementById(fid);
+            }
+        }
+    });
+
+    // ===== 更新一只手的 IMU 数据 =====
+    function updateHand(handKey, handData) {
+        if (!handData) return;
+        for (var i = 0; i <= 10; i++) {
+            var chData = handData['ch' + i];
+            if (!chData) continue;
+            var maxF = (i < 10) ? 6 : 9;
+            for (var j = 0; j < maxF; j++) {
+                var el = domCache[handKey + '_ch' + i + '_' + FIELDS[j]];
+                if (el) {
+                    var val = chData[FIELDS[j]];
+                    el.textContent = (val !== undefined && val !== null) ? val : '--';
+                }
+            }
+        }
+    }
+
+    // ===== 更新电池徽章 =====
+    function updateBattery(elId, battery) {
+        var el = document.getElementById(elId);
+        if (!el) return;
+        if (!battery) {
+            el.textContent = '-- mV | --%';
+            el.className = 'battery-badge';
+            return;
+        }
+        var mv  = battery.voltage_mv  !== undefined ? battery.voltage_mv  : '--';
+        var pct = battery.percentage  !== undefined ? battery.percentage  : '--';
+        el.textContent = mv + ' mV\u2002|\u2002' + pct + '%';
+        var cls = 'battery-badge';
+        if (typeof pct === 'number') {
+            if (pct >= 50) cls += ' bat-high';
+            else if (pct >= 20) cls += ' bat-mid';
+            else cls += ' bat-low';
+        }
+        el.className = cls;
+    }
+
+    // ===== 并行轮询左右两手，等两个请求都完成后再调度下一轮 =====
+    var running = true;
+    var statusCounter = 0;
+
+    function poll() {
+        if (!running) return;
+        var done = 0;
+
+        function onBothDone() {
+            done++;
+            if (done < 2) return;
+            // 每 10 轮查一次连接状态（降低请求量）
+            statusCounter++;
+            if (statusCounter >= 10) {
+                statusCounter = 0;
+                pollStatus();
+            } else {
+                schedulePoll();
+            }
+        }
+
+        // ── 左手 ──
+        var xhrL = new XMLHttpRequest();
+        xhrL.open('GET', '/api/device/latest?device=left');
+        xhrL.onload = function() {
+            if (xhrL.status === 200) {
+                try {
+                    var res = JSON.parse(xhrL.responseText);
+                    if (res.code === 0 && res.data) {
+                        updateHand('L', res.data.left);
+                        updateBattery('batteryLeft', res.data.battery);
+                    }
+                } catch(e) {}
+            }
+            onBothDone();
+        };
+        xhrL.onerror = function() { onBothDone(); };
+        xhrL.send();
+
+        // ── 右手 ──
+        var xhrR = new XMLHttpRequest();
+        xhrR.open('GET', '/api/device/latest?device=right');
+        xhrR.onload = function() {
+            if (xhrR.status === 200) {
+                try {
+                    var res = JSON.parse(xhrR.responseText);
+                    if (res.code === 0 && res.data) {
+                        updateHand('R', res.data.right);
+                        updateBattery('batteryRight', res.data.battery);
+                    }
+                } catch(e) {}
+            }
+            onBothDone();
+        };
+        xhrR.onerror = function() { onBothDone(); };
+        xhrR.send();
+    }
+
+    function pollStatus() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/api/device/list');
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                try {
+                    var res = JSON.parse(xhr.responseText);
+                    if (res.code === 0) updateDualStatus(res.data);
+                } catch(e) {}
+            }
+            schedulePoll();
+        };
+        xhr.onerror = function() { schedulePoll(); };
+        xhr.send();
+    }
+
+    function schedulePoll() {
+        if (running) setTimeout(poll, POLL_INTERVAL);
+    }
+
+    poll();
+
+    // 手动刷新连接状态按钮
+    document.getElementById('refreshStatusBtn').addEventListener('click', function() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/api/device/list');
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                try {
+                    var res = JSON.parse(xhr.responseText);
+                    if (res.code === 0) updateDualStatus(res.data);
+                } catch(e) {}
+            }
+        };
+        xhr.send();
+    });
+
+    window.addEventListener('beforeunload', function() { running = false; });
+});
+</script>
+{% endblock %}

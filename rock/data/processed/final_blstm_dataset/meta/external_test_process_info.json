@@ -1,0 +1,812 @@
+[
+  {
+    "sample_id": "gt_001",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 35,
+    "valid_frames": 35,
+    "action_start_idx": 0,
+    "action_end_idx": 34
+  },
+  {
+    "sample_id": "gt_002",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 30,
+    "valid_frames": 30,
+    "action_start_idx": 0,
+    "action_end_idx": 29
+  },
+  {
+    "sample_id": "gt_003",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 25,
+    "valid_frames": 25,
+    "action_start_idx": 0,
+    "action_end_idx": 24
+  },
+  {
+    "sample_id": "gt_004",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 25,
+    "valid_frames": 25,
+    "action_start_idx": 0,
+    "action_end_idx": 24
+  },
+  {
+    "sample_id": "gt_005",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 25,
+    "valid_frames": 25,
+    "action_start_idx": 0,
+    "action_end_idx": 24
+  },
+  {
+    "sample_id": "gt_006",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 26,
+    "valid_frames": 26,
+    "action_start_idx": 0,
+    "action_end_idx": 25
+  },
+  {
+    "sample_id": "gt_007",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 20,
+    "valid_frames": 20,
+    "action_start_idx": 0,
+    "action_end_idx": 19
+  },
+  {
+    "sample_id": "gt_008",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 16,
+    "valid_frames": 16,
+    "action_start_idx": 0,
+    "action_end_idx": 15
+  },
+  {
+    "sample_id": "gt_009",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 19,
+    "valid_frames": 19,
+    "action_start_idx": 0,
+    "action_end_idx": 18
+  },
+  {
+    "sample_id": "gt_010",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 18,
+    "valid_frames": 18,
+    "action_start_idx": 0,
+    "action_end_idx": 17
+  },
+  {
+    "sample_id": "gt_011",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 15,
+    "valid_frames": 15,
+    "action_start_idx": 0,
+    "action_end_idx": 14
+  },
+  {
+    "sample_id": "gt_012",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 16,
+    "valid_frames": 16,
+    "action_start_idx": 0,
+    "action_end_idx": 15
+  },
+  {
+    "sample_id": "gt_013",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 10,
+    "valid_frames": 10,
+    "action_start_idx": 0,
+    "action_end_idx": 9
+  },
+  {
+    "sample_id": "gt_014",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 11,
+    "valid_frames": 11,
+    "action_start_idx": 0,
+    "action_end_idx": 10
+  },
+  {
+    "sample_id": "gt_015",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 13,
+    "valid_frames": 13,
+    "action_start_idx": 0,
+    "action_end_idx": 12
+  },
+  {
+    "sample_id": "gt_016",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 8,
+    "valid_frames": 8,
+    "action_start_idx": 0,
+    "action_end_idx": 7
+  },
+  {
+    "sample_id": "gt_017",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 12,
+    "valid_frames": 12,
+    "action_start_idx": 0,
+    "action_end_idx": 11
+  },
+  {
+    "sample_id": "gt_018",
+    "original_label": "我",
+    "numeric_label": 4,
+    "original_frames": 11,
+    "valid_frames": 11,
+    "action_start_idx": 0,
+    "action_end_idx": 10
+  },
+  {
+    "sample_id": "gt_019",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 26,
+    "valid_frames": 26,
+    "action_start_idx": 0,
+    "action_end_idx": 25
+  },
+  {
+    "sample_id": "gt_020",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 21,
+    "valid_frames": 21,
+    "action_start_idx": 0,
+    "action_end_idx": 20
+  },
+  {
+    "sample_id": "gt_021",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 21,
+    "valid_frames": 21,
+    "action_start_idx": 0,
+    "action_end_idx": 20
+  },
+  {
+    "sample_id": "gt_022",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 20,
+    "valid_frames": 20,
+    "action_start_idx": 0,
+    "action_end_idx": 19
+  },
+  {
+    "sample_id": "gt_023",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 24,
+    "valid_frames": 24,
+    "action_start_idx": 0,
+    "action_end_idx": 23
+  },
+  {
+    "sample_id": "gt_024",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 20,
+    "valid_frames": 20,
+    "action_start_idx": 0,
+    "action_end_idx": 19
+  },
+  {
+    "sample_id": "gt_025",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 14,
+    "valid_frames": 14,
+    "action_start_idx": 0,
+    "action_end_idx": 13
+  },
+  {
+    "sample_id": "gt_026",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 17,
+    "valid_frames": 17,
+    "action_start_idx": 0,
+    "action_end_idx": 16
+  },
+  {
+    "sample_id": "gt_027",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 24,
+    "valid_frames": 24,
+    "action_start_idx": 0,
+    "action_end_idx": 23
+  },
+  {
+    "sample_id": "gt_028",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 20,
+    "valid_frames": 20,
+    "action_start_idx": 0,
+    "action_end_idx": 19
+  },
+  {
+    "sample_id": "gt_029",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 19,
+    "valid_frames": 19,
+    "action_start_idx": 0,
+    "action_end_idx": 18
+  },
+  {
+    "sample_id": "gt_030",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 20,
+    "valid_frames": 20,
+    "action_start_idx": 0,
+    "action_end_idx": 19
+  },
+  {
+    "sample_id": "gt_031",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 14,
+    "valid_frames": 14,
+    "action_start_idx": 0,
+    "action_end_idx": 13
+  },
+  {
+    "sample_id": "gt_032",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 13,
+    "valid_frames": 13,
+    "action_start_idx": 0,
+    "action_end_idx": 12
+  },
+  {
+    "sample_id": "gt_033",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 17,
+    "valid_frames": 17,
+    "action_start_idx": 0,
+    "action_end_idx": 16
+  },
+  {
+    "sample_id": "gt_034",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 13,
+    "valid_frames": 13,
+    "action_start_idx": 0,
+    "action_end_idx": 12
+  },
+  {
+    "sample_id": "gt_035",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 13,
+    "valid_frames": 13,
+    "action_start_idx": 0,
+    "action_end_idx": 12
+  },
+  {
+    "sample_id": "gt_036",
+    "original_label": "你",
+    "numeric_label": 0,
+    "original_frames": 13,
+    "valid_frames": 13,
+    "action_start_idx": 0,
+    "action_end_idx": 12
+  },
+  {
+    "sample_id": "gt_037",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 21,
+    "valid_frames": 21,
+    "action_start_idx": 0,
+    "action_end_idx": 20
+  },
+  {
+    "sample_id": "gt_038",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 20,
+    "valid_frames": 20,
+    "action_start_idx": 0,
+    "action_end_idx": 19
+  },
+  {
+    "sample_id": "gt_039",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 20,
+    "valid_frames": 20,
+    "action_start_idx": 0,
+    "action_end_idx": 19
+  },
+  {
+    "sample_id": "gt_040",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 17,
+    "valid_frames": 17,
+    "action_start_idx": 0,
+    "action_end_idx": 16
+  },
+  {
+    "sample_id": "gt_041",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 25,
+    "valid_frames": 25,
+    "action_start_idx": 0,
+    "action_end_idx": 24
+  },
+  {
+    "sample_id": "gt_042",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 26,
+    "valid_frames": 26,
+    "action_start_idx": 0,
+    "action_end_idx": 25
+  },
+  {
+    "sample_id": "gt_043",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 18,
+    "valid_frames": 18,
+    "action_start_idx": 0,
+    "action_end_idx": 17
+  },
+  {
+    "sample_id": "gt_044",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 18,
+    "valid_frames": 18,
+    "action_start_idx": 0,
+    "action_end_idx": 17
+  },
+  {
+    "sample_id": "gt_045",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 16,
+    "valid_frames": 16,
+    "action_start_idx": 0,
+    "action_end_idx": 15
+  },
+  {
+    "sample_id": "gt_046",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 17,
+    "valid_frames": 17,
+    "action_start_idx": 0,
+    "action_end_idx": 16
+  },
+  {
+    "sample_id": "gt_047",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 20,
+    "valid_frames": 20,
+    "action_start_idx": 0,
+    "action_end_idx": 19
+  },
+  {
+    "sample_id": "gt_048",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 16,
+    "valid_frames": 16,
+    "action_start_idx": 0,
+    "action_end_idx": 15
+  },
+  {
+    "sample_id": "gt_049",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 15,
+    "valid_frames": 15,
+    "action_start_idx": 0,
+    "action_end_idx": 14
+  },
+  {
+    "sample_id": "gt_050",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 17,
+    "valid_frames": 17,
+    "action_start_idx": 0,
+    "action_end_idx": 16
+  },
+  {
+    "sample_id": "gt_051",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 18,
+    "valid_frames": 18,
+    "action_start_idx": 0,
+    "action_end_idx": 17
+  },
+  {
+    "sample_id": "gt_052",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 25,
+    "valid_frames": 25,
+    "action_start_idx": 0,
+    "action_end_idx": 24
+  },
+  {
+    "sample_id": "gt_053",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 23,
+    "valid_frames": 23,
+    "action_start_idx": 0,
+    "action_end_idx": 22
+  },
+  {
+    "sample_id": "gt_054",
+    "original_label": "好",
+    "numeric_label": 3,
+    "original_frames": 22,
+    "valid_frames": 22,
+    "action_start_idx": 0,
+    "action_end_idx": 21
+  },
+  {
+    "sample_id": "gt_055",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 24,
+    "valid_frames": 24,
+    "action_start_idx": 0,
+    "action_end_idx": 23
+  },
+  {
+    "sample_id": "gt_056",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 24,
+    "valid_frames": 24,
+    "action_start_idx": 0,
+    "action_end_idx": 23
+  },
+  {
+    "sample_id": "gt_057",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 24,
+    "valid_frames": 24,
+    "action_start_idx": 0,
+    "action_end_idx": 23
+  },
+  {
+    "sample_id": "gt_058",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 28,
+    "valid_frames": 28,
+    "action_start_idx": 0,
+    "action_end_idx": 27
+  },
+  {
+    "sample_id": "gt_059",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 28,
+    "valid_frames": 28,
+    "action_start_idx": 0,
+    "action_end_idx": 27
+  },
+  {
+    "sample_id": "gt_060",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 31,
+    "valid_frames": 31,
+    "action_start_idx": 0,
+    "action_end_idx": 30
+  },
+  {
+    "sample_id": "gt_061",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 30,
+    "valid_frames": 30,
+    "action_start_idx": 0,
+    "action_end_idx": 29
+  },
+  {
+    "sample_id": "gt_062",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 29,
+    "valid_frames": 29,
+    "action_start_idx": 0,
+    "action_end_idx": 28
+  },
+  {
+    "sample_id": "gt_063",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 24,
+    "valid_frames": 24,
+    "action_start_idx": 0,
+    "action_end_idx": 23
+  },
+  {
+    "sample_id": "gt_064",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 26,
+    "valid_frames": 26,
+    "action_start_idx": 0,
+    "action_end_idx": 25
+  },
+  {
+    "sample_id": "gt_065",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 19,
+    "valid_frames": 19,
+    "action_start_idx": 0,
+    "action_end_idx": 18
+  },
+  {
+    "sample_id": "gt_066",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 26,
+    "valid_frames": 26,
+    "action_start_idx": 0,
+    "action_end_idx": 25
+  },
+  {
+    "sample_id": "gt_067",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 20,
+    "valid_frames": 20,
+    "action_start_idx": 0,
+    "action_end_idx": 19
+  },
+  {
+    "sample_id": "gt_068",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 13,
+    "valid_frames": 13,
+    "action_start_idx": 0,
+    "action_end_idx": 12
+  },
+  {
+    "sample_id": "gt_069",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 22,
+    "valid_frames": 22,
+    "action_start_idx": 0,
+    "action_end_idx": 21
+  },
+  {
+    "sample_id": "gt_070",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 25,
+    "valid_frames": 25,
+    "action_start_idx": 0,
+    "action_end_idx": 24
+  },
+  {
+    "sample_id": "gt_071",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 21,
+    "valid_frames": 21,
+    "action_start_idx": 0,
+    "action_end_idx": 20
+  },
+  {
+    "sample_id": "gt_072",
+    "original_label": "吃饭",
+    "numeric_label": 2,
+    "original_frames": 16,
+    "valid_frames": 16,
+    "action_start_idx": 0,
+    "action_end_idx": 15
+  },
+  {
+    "sample_id": "gt_073",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 30,
+    "valid_frames": 30,
+    "action_start_idx": 0,
+    "action_end_idx": 29
+  },
+  {
+    "sample_id": "gt_074",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 26,
+    "valid_frames": 26,
+    "action_start_idx": 0,
+    "action_end_idx": 25
+  },
+  {
+    "sample_id": "gt_075",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 31,
+    "valid_frames": 31,
+    "action_start_idx": 0,
+    "action_end_idx": 30
+  },
+  {
+    "sample_id": "gt_076",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 36,
+    "valid_frames": 36,
+    "action_start_idx": 0,
+    "action_end_idx": 35
+  },
+  {
+    "sample_id": "gt_077",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 29,
+    "valid_frames": 29,
+    "action_start_idx": 0,
+    "action_end_idx": 28
+  },
+  {
+    "sample_id": "gt_078",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 25,
+    "valid_frames": 25,
+    "action_start_idx": 0,
+    "action_end_idx": 24
+  },
+  {
+    "sample_id": "gt_079",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 20,
+    "valid_frames": 20,
+    "action_start_idx": 0,
+    "action_end_idx": 19
+  },
+  {
+    "sample_id": "gt_080",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 28,
+    "valid_frames": 28,
+    "action_start_idx": 0,
+    "action_end_idx": 27
+  },
+  {
+    "sample_id": "gt_081",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 26,
+    "valid_frames": 26,
+    "action_start_idx": 0,
+    "action_end_idx": 25
+  },
+  {
+    "sample_id": "gt_082",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 26,
+    "valid_frames": 26,
+    "action_start_idx": 0,
+    "action_end_idx": 25
+  },
+  {
+    "sample_id": "gt_083",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 23,
+    "valid_frames": 23,
+    "action_start_idx": 0,
+    "action_end_idx": 22
+  },
+  {
+    "sample_id": "gt_084",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 18,
+    "valid_frames": 18,
+    "action_start_idx": 0,
+    "action_end_idx": 17
+  },
+  {
+    "sample_id": "gt_085",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 18,
+    "valid_frames": 18,
+    "action_start_idx": 0,
+    "action_end_idx": 17
+  },
+  {
+    "sample_id": "gt_086",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 16,
+    "valid_frames": 16,
+    "action_start_idx": 0,
+    "action_end_idx": 15
+  },
+  {
+    "sample_id": "gt_087",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 19,
+    "valid_frames": 19,
+    "action_start_idx": 0,
+    "action_end_idx": 18
+  },
+  {
+    "sample_id": "gt_088",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 22,
+    "valid_frames": 22,
+    "action_start_idx": 0,
+    "action_end_idx": 21
+  },
+  {
+    "sample_id": "gt_089",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 20,
+    "valid_frames": 20,
+    "action_start_idx": 0,
+    "action_end_idx": 19
+  },
+  {
+    "sample_id": "gt_090",
+    "original_label": "再见",
+    "numeric_label": 1,
+    "original_frames": 21,
+    "valid_frames": 21,
+    "action_start_idx": 0,
+    "action_end_idx": 20
+  }
+]

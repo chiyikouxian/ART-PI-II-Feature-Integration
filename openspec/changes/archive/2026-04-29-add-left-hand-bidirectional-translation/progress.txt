@@ -1,0 +1,119 @@
+# 实施进度记录
+
+## 2026-04-17 更新
+
+### IMU 数据滤波实现完成
+
+#### 实现位置
+- 文件: `art_pi2_left/mpu6050/mpu6050_thread.c` 和 `art_pi2_right/mpu6050/mpu6050_thread.c`
+- 函数: `apply_lpf()` (行 52-64)
+- 调用位置: `mpu_get_channel_data()` (行 700-711)
+
+#### 滤波算法
+**一阶 IIR 低通滤波器（指数移动平均）**
+
+数学公式：
+```
+state[axis] += alpha * (sample - state[axis])
+```
+
+其中：
+- `alpha` = 滤波系数，控制响应速度
+- `sample` = 当前原始采样值
+- `state[axis]` = 滤波器状态（上一次输出）
+
+#### 滤波参数
+- **MPU6050 传感器** (ch0-ch9):
+  - `SENSOR_LPF_ALPHA = 0.25`
+  - 截止频率约 2.5Hz (采样率 10Hz)
+  - 适中的滤波强度，平衡响应速度和噪声抑制
+
+- **ICM-20948 传感器** (ch10, 手背):
+  - `SENSOR_LPF_ALPHA_ICM = 0.10`
+  - 截止频率约 1Hz (采样率 10Hz)
+  - 更强的滤波，降低手背传感器的抖动
+
+#### 陀螺仪零偏校准
+- **MPU6050**: 前 125 个样本计算零偏
+- **ICM-20948**: 前 250 个样本计算零偏
+- 校准完成后自动从陀螺仪数据中减去零偏
+
+#### 数据流向
+```
+传感器硬件读取
+    ↓
+mpu_data_i2c1[] / mpu_data_i2c2[] (原始数据)
+    ↓
+    ├─→ data_start 命令输出 (原始数据，用于离线分析)
+    │
+    └─→ mpu_get_channel_data() (应用滤波 + 零偏校正)
+            ↓
+            ├─→ BLE Notify (滤波后数据 → ROCK)
+            └─→ TCP 上报 (滤波后数据 → PC)
+```
+
+#### 验证方法
+1. **原始数据记录**: 使用 `data_start` 命令输出未滤波的原始数据
+2. **滤波数据验证**: BLE 和 TCP 路径自动使用滤波后的数据
+3. **零偏校准**: 启动后自动完成，日志输出 `[GYRO_CALIB] CH{n} done: bias=[x, y, z]`
+
+#### 技术特点
+- **实时滤波**: 每次数据查询时动态应用，无需额外缓冲
+- **低内存占用**: 每通道仅需 9 个 float 状态变量
+- **自适应初始化**: 首次采样直接使用原始值，避免启动瞬态
+- **差异化配置**: 根据传感器特性（MPU6050 vs ICM-20948）使用不同滤波强度
+
+#### 影响范围
+- ✅ 左手固件: 完整实现
+- ✅ 右手固件: 完整实现
+- ✅ BLE 上报: 使用滤波后数据
+- ✅ TCP 上报: 使用滤波后数据
+- ✅ 数据记录: 保留原始数据选项（data_start 命令）
+
+#### 相关任务
+- 任务 2.1: ✅ 已完成 - IMU 数据采集路径包含滤波处理
+- 任务 2.2: ✅ 已完成 - BLE IMU 上报 payload 契约已写入 spec.md
+- 任务 2.3: ✅ 已完成 - TCP 上报使用滤波后数据
+
+---
+
+## 历史记录
+
+### 2026-04-17
+- ✅ 完成 OpenSpec 变更单创建（proposal.md, tasks.md, spec.md）
+- ✅ 完成 BLE 设备配置文档（docs/BLE_DEVICE_CONFIG.md）
+- ✅ 完成双手固件功能完整性检查
+- ✅ 完成 IMU 数据滤波实现记录
+- ✅ PC 端 TCP 服务器接收验证通过
+- ✅ 左手 BLE 文本接收 + VTX316 播报验证通过
+- ✅ 左手 TCP translated_text 上报验证通过
+
+### 待完成
+- ✅ 任务 2.2: BLE IMU 上报 payload 契约已定义（spec.md）
+- ✅ 任务 3.1: ROCK 侧 BLE service 规格已通过新立 OpenSpec change 单独管理（add-rock-ble-consumer-contract）
+- ⏳ 任务 3.3: 补充异常处理文档
+- ⏳ 任务 4.2: 获取 proposal 正式审批
+
+### 2026-04-28
+- ✅ 完成 task 2.2: 定义左手 BLE IMU 上报 payload 契约
+  - 在 spec.md 中添加 "Left-Hand BLE IMU Uplink Payload Contract" requirement
+  - 定义 GATT UUID、CSV 格式、90ms 周期、左右手区分方式
+  - 5 个 scenario 覆盖：字段顺序、无效通道、左右手共用 UUID、传输语义、文本通道独立
+  - 通过 openspec validate --strict 验证
+  - Commit: f3053ca
+
+### 2026-04-28（追加）
+- ✅ 完成 task 3.1: ROCK 侧 BLE 契约对齐
+- 核对结论：UUID 实际为 A74D0001-...（小端字节流解码），左右手共用，与 ROCK service_config.json 完全一致
+- 注：之前代码注释中的 A7IM 写法是历史助记错误，已统一更正为 A74D
+- ROCK 侧"双缓存 + 帧号对齐 + 时间戳兜底 + 线性插值"为目标功能，当前 ROCK 仓库为雏形
+- 由 ART-Pi2 端定契约，ROCK 端按契约补齐：单独立 OpenSpec change add-rock-ble-consumer-contract
+- 关联 commit: 待提交（本批次 UUID 注释修正 + 新 OpenSpec change）
+
+### 2026-04-29
+- ✅ 完成 task 3.3: 补充异常处理文档
+  - BLE 断连：BLE_GAP_EVENT_DISCONNECT → 清连接句柄 → 重新广播，无需固件重启
+  - 文本缺失：translated_text_pending=false 时 TCP JSON 不含该字段，向后兼容
+  - TCP 不可用：固定间隔重试连接循环，pending 的 translated_text 保留至重连后发送
+- ✅ 完成 task 4.2: proposal 已审批
+- 变更单 add-left-hand-bidirectional-translation 全部任务完成 ✅

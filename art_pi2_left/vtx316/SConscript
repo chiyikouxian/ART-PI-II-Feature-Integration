@@ -1,0 +1,10 @@
+import rtconfig
+from building import *
+
+cwd  = GetCurrentDir()
+path = [cwd]
+src  = Glob('*.c')
+
+group = DefineGroup('vtx316', src, depend = ['BSP_USING_UART1'], CPPPATH = path)
+
+Return('group')

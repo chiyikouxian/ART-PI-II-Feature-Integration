@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 手语翻译系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='layui-v2.13.3/layui/css/layui.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-body">
+    <!-- 右上角 Logo -->
+    <!-- <img src="{{ url_for('static', filename='images/logo.png') }}" alt="logo" class="corner-logo login-corner-logo"> -->
+    <div class="login-split-wrapper">
+        <!-- 左侧品牌面板 -->
+        <div class="login-left-panel">
+            <div class="login-left-content">
+                <!-- 顶部 Logo -->
+                <div class="login-brand">
+                    <img src="{{ url_for('static', filename='images/logo2.png') }}" alt="logo" class="login-brand-logo">
+                    <span class="login-brand-name">手语翻译平台</span>
+                </div>
+
+                <!-- 主标语 -->
+                <div class="login-slogan">
+                    <h1>打破障碍</h1>
+                    <h1 class="login-slogan-highlight">连接世界</h1>
+                </div>
+
+                <p class="login-slogan-desc">
+                    基于RT-Thread 虚拟化混合部署平台与ART-PIⅡ的边缘端双向手语翻译系统，用前沿AI技术架起沟通的桥梁。
+                </p>
+
+                <!-- 特性列表 -->
+                <div class="login-features">
+                    <div class="login-feature-item">
+                        <div class="login-feature-icon">
+                            <i class="layui-icon layui-icon-rate-solid"></i>
+                        </div>
+                        <div class="login-feature-text">
+                            <strong>实时识别翻译</strong>
+                            <span>基于先进AI模型驱动</span>
+                        </div>
+                    </div>
+                    <div class="login-feature-item">
+                        <div class="login-feature-icon">
+                            <i class="layui-icon layui-icon-ok-circle"></i>
+                        </div>
+                        <div class="login-feature-text">
+                            <strong>安全可靠</strong>
+                            <span>数据加密传输与存储</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 左侧底部版权 -->
+            <div class="login-left-footer">
+                <span>&copy; 2026 手语翻译系统</span>
+            </div>
+        </div>
+
+        <!-- 右侧登录面板 -->
+        <div class="login-right-panel">
+            <div class="login-form-card">
+                <div class="login-form-header">
+                    <h2>欢迎回来</h2>
+                    <p>请输入您的账号信息以登录系统</p>
+                </div>
+
+                <!-- Flash 消息 -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}" style="margin-bottom: 15px;">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <!-- 登录表单 -->
+                <form class="layui-form" action="{{ url_for('auth.login') }}" method="post">
+                    <div class="login-field">
+                        <label class="login-field-label"><span class="login-required">*</span> 用户名</label>
+                        <div class="layui-input-wrap">
+                            <div class="layui-input-prefix">
+                                <i class="layui-icon layui-icon-username" style="font-size: 18px; color: #999;"></i>
+                            </div>
+                            <input type="text" name="username" required
+                                   placeholder="admin"
+                                   autocomplete="username"
+                                   class="layui-input"
+                                   lay-affix="clear">
+                        </div>
+                    </div>
+
+                    <div class="login-field">
+                        <label class="login-field-label"><span class="login-required">*</span> 密码</label>
+                        <div class="layui-input-wrap">
+                            <div class="layui-input-prefix">
+                                <i class="layui-icon layui-icon-password" style="font-size: 18px; color: #999;"></i>
+                            </div>
+                            <input type="password" name="password" required
+                                   placeholder="请输入密码"
+                                   autocomplete="current-password"
+                                   class="layui-input"
+                                   lay-affix="eye">
+                        </div>
+                    </div>
+
+                    <div class="login-options">
+                        <label class="login-remember">
+                            <input type="checkbox" name="remember" lay-skin="primary" title="记住我" checked>
+                        </label>
+                        <a href="javascript:;" class="login-forgot">忘记密码？</a>
+                    </div>
+
+                    <div class="layui-form-item" style="margin-top: 20px;">
+                        <button class="layui-btn layui-btn-fluid login-submit-btn" type="submit">
+                            <i class="layui-icon layui-icon-ok"></i> 登 录
+                        </button>
+                    </div>
+
+                    <div class="login-footer-links">
+                        还没有账号？<a href="{{ url_for('auth.register') }}">立即注册</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='layui-v2.13.3/layui/layui.js') }}"></script>
+    <script>
+    layui.use(['form'], function(){
+        var form = layui.form;
+        form.render();
+    });
+    </script>
+</body>
+</html>

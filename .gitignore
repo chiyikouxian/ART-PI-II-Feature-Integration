@@ -1,0 +1,6 @@
+.claude/
+
+# Keil auto-generated files
+*.uvoptx
+*.uvguix
+*.scvd

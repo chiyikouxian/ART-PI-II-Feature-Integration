@@ -1,0 +1,32 @@
+{
+  "targets": [
+    {
+      "id": "ART-Pi2-IMU-L",
+      "device_name": "ART-Pi2-IMU-L",
+      "listen_host": "0.0.0.0",
+      "listen_port": 9101,
+      "accept_timeout_s": 15,
+      "reconnect_interval_s": 3
+    },
+    {
+      "id": "ART-Pi2-IMU-R",
+      "device_name": "ART-Pi2-IMU-R",
+      "listen_host": "0.0.0.0",
+      "listen_port": 9102,
+      "accept_timeout_s": 15,
+      "reconnect_interval_s": 3
+    }
+  ],
+  "encoding": {
+    "codec": "utf-8",
+    "newline": "\n"
+  },
+  "ipc": {
+    "unix_socket_path": "/run/wifi_service.sock",
+    "tcp_host": "127.0.0.1",
+    "tcp_port": 8765
+  },
+  "logging": {
+    "level": "INFO"
+  }
+}

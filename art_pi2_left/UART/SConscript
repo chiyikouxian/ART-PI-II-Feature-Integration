@@ -1,0 +1,13 @@
+import rtconfig
+from building import *
+
+# UART_OLED module removed - VTX316 module replaces it
+# This file is kept empty to prevent build errors from auto-discovery
+
+cwd = GetCurrentDir()
+src = []
+path = [cwd]
+
+group = DefineGroup('UART', src, depend = [''], CPPPATH = path)
+
+Return('group')
