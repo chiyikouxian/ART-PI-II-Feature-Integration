@@ -16,8 +16,8 @@
 #define ENV_STT_SERVER_PORT "stt_server_port"
 
 /* 默认配置 (当环境变量未设置时使用) */
-#define DEFAULT_SERVER_IP       "192.168.221.217"
-#define DEFAULT_SERVER_PORT     8266
+#define DEFAULT_SERVER_IP       "192.168.157.217"
+#define DEFAULT_SERVER_PORT     9109
 #define DEFAULT_STT_SERVER_PORT 8080
 
 /**

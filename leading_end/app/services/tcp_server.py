@@ -16,7 +16,7 @@ from collections import deque
 
 # 配置
 TCP_HOST = '0.0.0.0'
-TCP_PORT = 8266
+TCP_PORT = 9109
 MAX_HISTORY = 200  # 每个设备最多保留的历史记录条数
 MAX_CLIENTS = 10   # 最大同时连接数
 

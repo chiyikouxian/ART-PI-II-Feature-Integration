@@ -45,11 +45,4 @@ def create_app(config_class=Config):
             items = []
         return dict(menu_items=items)
 
-    # 启动 TCP 服务器后台线程（接收开发板数据）
-    # 仅在 worker 进程中启动，避免 debug reloader 导致重复启动
-    import os
-    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
-        from app.services.tcp_server import start_tcp_server
-        start_tcp_server()
-
     return app

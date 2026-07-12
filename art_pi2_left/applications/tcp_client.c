@@ -420,7 +420,7 @@ static void tcp_client_thread_entry(void *parameter)
 /**
  * @brief  启动TCP客户端
  * @note   MSH命令: tcp_start [server_ip] [port]
- *         示例: tcp_start 192.168.1.100 8266
+ *         示例: tcp_start 192.168.1.100 9109
  */
 int tcp_client_start(int argc, char **argv)
 {

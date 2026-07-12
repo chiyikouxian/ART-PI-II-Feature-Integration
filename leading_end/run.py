@@ -85,9 +85,14 @@ if __name__ == '__main__':
     # 自动初始化数据库
     init_database()
 
+    # The device TCP listener must have a single owner. Werkzeug's debug
+    # reloader creates a second process, which otherwise races for port 8266.
+    from app.services.tcp_server import start_tcp_server
+    start_tcp_server()
+
     # 启动应用
     print('=' * 50)
     print('手套数据采集系统启动中...')
     print('访问地址: http://127.0.0.1:5000')
     print('=' * 50)
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
