@@ -1,6 +1,27 @@
+# IDE / AI tooling
 .claude/
+.reasonix/
 
 # Keil auto-generated files
 *.uvoptx
 *.uvguix
 *.scvd
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.env
+
+# RT-Thread build artifacts
+**/build/*.o
+**/build/*.d
+**/build/*.i
+**/build/*.ia
+**/build/rtthread.elf
+**/build/rtthread.bin
+**/build/rtthread.map
+
+# One-off local helpers (kept in parent dir, not part of the repo)
+/create_arch_ppt.py
