@@ -291,9 +291,6 @@ int main(void)
     rt_kprintf("[Main] Waiting for sensor calibration (6 seconds)...\n");
     rt_thread_mdelay(6000);  /* ICM需要250样本×20ms=5秒，加1秒余量 */
 
-    /* --- 初始化操作模式（自动待机检测 + 按键轮询） --- */
-    operation_mode_init();
-
     /* --- 联网成功后自动启动TCP客户端 --- */
     if (wifi_connected)
     {
@@ -308,6 +305,9 @@ int main(void)
             init_success = RT_FALSE;
             vtx316_report_boot_error(VTX316_BOOT_ERROR_TCP);
         }
+
+        /* --- 启动操作模式状态机（含自动唤醒+校准线程） --- */
+        operation_mode_init();
 
         /* --- 启动IMU WiFi发送线程（发送原始数据到Rock） --- */
         result = imu_wifi_sender_start();
