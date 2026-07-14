@@ -430,6 +430,21 @@
               <FilePath>applications\tcp_client.c</FilePath>
             </File>
             <File>
+              <FileName>net_io.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\applications\net_io.c</FilePath>
+            </File>
+            <File>
+              <FileName>pc_discovery.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\applications\pc_discovery.c</FilePath>
+            </File>
+            <File>
+              <FileName>model_queue.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\applications\model_queue.c</FilePath>
+            </File>
+            <File>
               <FileName>imu_wifi_sender.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\applications\imu_wifi_sender.c</FilePath>

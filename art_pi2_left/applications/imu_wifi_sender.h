@@ -15,7 +15,7 @@
 #include <rtthread.h>
 
 /* Rock服务器配置 */
-#define ROCK_SERVER_IP       "192.168.247.239"
+#define ROCK_SERVER_IP       "192.168.245.50"
 #define ROCK_SERVER_PORT     9101          /* 左手端口 */
 
 /* 线程配置 */
@@ -26,6 +26,8 @@
 /* 发送配置 */
 #define IMU_WIFI_SEND_INTERVAL       90    /* 90ms = 11.1Hz */
 #define IMU_WIFI_SEND_BUF_SIZE       1024  /* CSV数据约200-250字节 */
+#define IMU_WIFI_SEND_DEADLINE_MS    70    /* 单次发送最长阻塞 70ms,
+                                            * 余下 20ms 留给 recv 与模型数据 */
 
 /**
  * @brief  启动IMU WiFi发送线程

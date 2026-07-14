@@ -18,17 +18,25 @@
 
 ```
 ┌──────────────────┐     WiFi TCP (JSON)     ┌──────────────────────────────┐
-│  左手手套 (LEFT)  │ ──── port 8266 ────────→│                              │
+│  左手手套 (LEFT)  │ ──── port 9109 ────────→│                              │
 │  ART-Pi2 + IMU×11│                         │   Flask Web Server           │
 │  + OLED + VTX316 │                         │   (Python + Three.js)        │
 └──────────────────┘                         │                              │
                                              │  ┌─ 实时翻译 (3D骨骼模型)    │
 ┌──────────────────┐     WiFi TCP (JSON)     │  ├─ 设备数据监控             │
-│  右手手套 (RIGHT) │ ──── port 8266 ────────→│  ├─ 通道映射配置             │
+│  右手手套 (RIGHT) │ ──── port 9109 ────────→│  ├─ 通道映射配置             │
 │  ART-Pi2 + IMU×11│                         │  ├─ AI引擎管理               │
 │  + 麦克风 + 语音  │                         │  └─ 界面管理                 │
 └──────────────────┘                         └──────────────────────────────┘
 ```
+
+PC端每秒向 `255.255.255.255:9108/UDP` 和当前热点的 `/24` 定向广播地址（例如 `192.168.137.255:9108`）同时广播：
+
+```text
+ARTPI_PC,1,9109\n
+```
+
+左右手开发板从 `recvfrom()` 的来源地址取得当前PC IPv4地址。PC同时保留两种广播，并每2秒对当前 `/24` 热点子网执行一次小型UDP单播发现扫描，用于兼容会过滤全部客户端广播、但允许客户端单播的手机热点。手机热点重连导致PC地址变化时，`server_config` 原子更新 `IP + port + generation`，PC侧TCP客户端检测到 generation 变化后自动断开并连接新地址，无需重新烧录。
 
 ---
 
@@ -77,7 +85,8 @@ main()
   ├─ Thread: vtx316     [优先级20, 栈2KB]  → VTX316语音合成初始化 (一次性, 仅左手端)
   ├─ Thread: mpu6050    [优先级16, 栈4KB]  → 10Hz 11路IMU数据采集
   ├─ Thread: bat_adc    [优先级22, 栈1KB]  → 1Hz 电池电压ADC采样
-  ├─ Thread: tcp_cli    [优先级22, 栈4KB]  → WiFi TCP JSON数据上传 (MSH命令动态启停)
+  ├─ Thread: pc_disc    [优先级24, 栈2KB]  → UDP 9108监听PC地址广播
+  ├─ Thread: tcp_cli    [优先级22, 栈4KB]  → TCP 9109 JSON数据上传与自动重连
   └─ Main Loop: LED心跳 (500ms)
 ```
 
@@ -86,7 +95,8 @@ main()
 ### 核心功能
 
 - **11路IMU传感器采集**: 10Hz采样率，TCA9548A通道切换，支持MPU6050(6轴)和ICM-20948(9轴)
-- **WiFi TCP双向通信**: JSON格式数据实时上传至PC端（默认 192.168.6.92:8266），支持接收PC下发命令
+- **WiFi TCP双向通信**: JSON格式数据实时上传至PC端TCP `9109`，支持接收PC下发命令
+- **PC地址自动发现**: UDP `9108`严格解析PC广播，使用来源IPv4地址更新端点；热点换网后通过generation触发自动重连
 - **锂电池监测**: ADC采集 + 8次滑动平均滤波，14级电池图标显示，范围3.0V~4.2V
 - **OLED实时显示**: SH1106 128×64屏幕，状态栏(电压/电量) + 3行文本滚动显示
 - **VTX316语音合成** (仅左手端): UART1驱动，支持非阻塞/阻塞式语音播报
@@ -145,7 +155,7 @@ Battery: 3.850V  71%
 
 - **后端**: Python 3 + Flask + SQLite
 - **前端**: Layui v2.13.3 + Three.js
-- **通信**: TCP Socket Server (端口8266)
+- **通信**: TCP Socket Server（端口`9109`）+ UDP地址发现（端口`9108`）
 
 ### 功能页面
 
@@ -179,7 +189,7 @@ Battery: 3.850V  71%
 
 ```
 手套设备 (ART-Pi2)
-    ↓ JSON over TCP:8266
+    ↓ JSON over TCP:9109
 Flask TCP Server (多设备管理, 线程安全)
     ↓ REST API
 前端 JavaScript (50ms轮询)
@@ -229,6 +239,7 @@ art_pi2_wifi_project/
 │
 ├── leading_end/                   # Web可视化后端
 │   ├── app/                       #   Flask应用 (models, views, services)
+│   │   └── services/              #   TCP 9109服务与UDP 9108地址广播
 │   ├── templates/                 #   Jinja2 HTML模板
 │   ├── static/                    #   静态资源 (Layui, Three.js, CSS, 3D模型)
 │   ├── hardware/                  #   硬件抽象层 (数据采集, 信号预处理)
@@ -236,6 +247,7 @@ art_pi2_wifi_project/
 │   ├── run.py                     #   启动入口
 │   └── requirements.txt           #   Python依赖
 │
+├── openspec/                      # OpenSpec规范、变更设计与验证任务
 ├── a8c4b-main/                    # A8C4B模块参考工程
 ├── Unicode_GB2312_GBK_convert_table-master/  # 字符编码转换表
 └── README.md                      # 本文件
@@ -277,7 +289,21 @@ pip install -r requirements.txt
 python run.py
 ```
 
-默认启动后访问 `http://localhost:5000`，TCP Server监听端口 `8266`。
+默认启动后访问 `http://localhost:5000`。设备TCP Server监听 `0.0.0.0:9109`，后台发现服务通过UDP `9108`广播当前PC地址。
+
+Windows首次运行时应允许Python通过“专用网络”防火墙。可用以下命令确认TCP监听：
+
+```powershell
+netstat -ano | findstr :9109
+```
+
+### 热点IP变化验证
+
+1. 启动 `leading_end/run.py`，确认TCP `9109`已监听。
+2. 启动左右手开发板，使用 `pc_disc_stat` 确认收到有效广播并记录发现地址。
+3. 关闭并重新开启手机热点，让电脑重新连接并获得新的IPv4地址。
+4. 不重启、不重新烧录开发板，确认发现地址与endpoint generation发生变化。
+5. 确认左右手重新连接TCP `9109`且JSON数据恢复；ROCK `9101/9102`链路不应受影响。
 
 ---
 
@@ -285,9 +311,10 @@ python run.py
 
 1. **I2C总线共享**: I2C2被OLED和MPU6050共享，通过互斥锁 + TCA9548A通道切换 + GPIO重初始化保证安全
 2. **Madgwick传感器融合**: Web端使用Madgwick滤波器将加速度计+陀螺仪原始数据融合为四元数，驱动骨骼旋转
-3. **多设备TCP管理**: Flask TCP Server支持最多10个设备同时连接，线程安全，自动重连
+3. **多设备TCP管理**: Flask TCP Server在`9109`支持最多10个设备同时连接，处理HELLO、PING/PONG并维护设备会话
 4. **指尖联动**: 通道映射中第3节指骨旋转自动带动第4节，符合人体手指弯曲规律
 5. **HAL直驱ADC**: 电池采集绕过RT-Thread ADC框架，直接使用STM32 HAL库，需确保已启用 `HAL_ADC_MODULE_ENABLED`
+6. **动态端点发现**: UDP广播来源地址 + 严格协议校验 + mutex原子快照 + generation驱动重连
 
 ---
 

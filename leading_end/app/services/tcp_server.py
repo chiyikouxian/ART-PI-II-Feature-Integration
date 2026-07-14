@@ -45,6 +45,11 @@ class DeviceInfo:
         self.last_seen = time.time()
         self.latest_data = None
         self.history = deque(maxlen=MAX_HISTORY)
+        # Issue 5: track per-device boot_id / session_id from HELLO so the
+        # frontend can surface "device rebooted" or "device reconnected" in
+        # the UI. None until the first HELLO frame is parsed.
+        self.boot_id = None
+        self.session_id = None
 
     def to_status_dict(self):
         return {
@@ -52,6 +57,8 @@ class DeviceInfo:
             'connected': self.connected,
             'addr': self.addr,
             'last_seen': self.last_seen,
+            'boot_id': self.boot_id,
+            'session_id': self.session_id,
         }
 
 
@@ -204,6 +211,75 @@ def _handle_client(conn, addr):
                 trimmed = line.strip()
                 if not trimmed:
                     continue
+
+                # --- Heartbeat protocol (issue 3 fix) ---
+                # The ART-Pi2 boards send "PING\n" every 2s and disconnect
+                # if no "PONG\n" reply arrives within 6s. Reply BEFORE the
+                # JSON parser runs so a non-JSON PING line doesn't get
+                # logged as "JSON 解析失败". HELLO lines are also routed
+                # here so the leading session announce never reaches JSON.
+                if trimmed == 'PING':
+                    try:
+                        conn.sendall(b'PONG\n')
+                    except Exception as exc:
+                        print(f'[TCP] [{addr_str}] PONG send failed: {exc}')
+                    continue
+                if trimmed.startswith('HELLO,'):
+                    # Issue 5 fix: parse HELLO so we can:
+                    #   1. log a structured session-announce (boot + session id)
+                    #   2. clear the *current connection's* cached latest_data
+                    #      and history so a stale "device is still showing
+                    #      last frame" ghost doesn't survive a reboot / re-flash.
+                    # The format on the wire is:
+                    #   HELLO,<side>,<boot_hex>,<session_hex>\n
+                    # where side is one of {C, S, L, R}.
+                    try:
+                        parts = trimmed.split(',')
+                        # parts = ['HELLO', side, boot, session]
+                        if len(parts) == 4:
+                            side_h, boot_h, sess_h = parts[1], parts[2], parts[3]
+                            boot_id = int(boot_h, 16)
+                            sess_id = int(sess_h, 16)
+                            print(
+                                f'[TCP] [{addr_str}] session HELLO: '
+                                f'side={side_h} boot=0x{boot_id:08x} '
+                                f'session=0x{sess_id:08x}'
+                            )
+                        else:
+                            boot_id = None
+                            sess_id = None
+                            print(
+                                f'[TCP] [{addr_str}] session HELLO: '
+                                f'{trimmed} (unparsed)'
+                            )
+
+                        # Flush this connection's per-device cache. We clear
+                        # *before* the next JSON frame arrives so the UI never
+                        # shows a stale frame from the previous session. If
+                        # device_id isn't bound yet (HELLO arrived before the
+                        # first JSON), there's nothing to flush and the flush
+                        # is effectively a no-op for now.
+                        if device_id is not None:
+                            with _lock:
+                                dev = _devices.get(device_id)
+                                if dev is not None and dev.conn is conn:
+                                    dev.latest_data = None
+                                    dev.history.clear()
+                                    dev.boot_id    = boot_id
+                                    dev.session_id = sess_id
+                                    dev.last_seen  = time.time()
+                                    print(
+                                        f'[TCP] [{device_id}] session cache '
+                                        f'flushed (HELLO)'
+                                    )
+                    except (ValueError, IndexError) as exc:
+                        print(
+                            f'[TCP] [{addr_str}] HELLO parse error: '
+                            f'{exc!r} line={trimmed!r}'
+                        )
+                    continue
+                # --- end heartbeat ---
+
                 try:
                     parsed = json.loads(trimmed)
                     parsed['recv_time'] = time.strftime('%H:%M:%S')

@@ -47,6 +47,8 @@
 #include "../mpu6050/mpu6050_thread.h"
 #include "adc_battery.h"
 #include "tcp_client.h"
+#include "pc_discovery.h"
+#include "server_config.h"
 #include "imu_wifi_sender.h"
 #include "operation_mode.h"
 #include "button.h"
@@ -62,8 +64,8 @@ int left_ble_app_init(void);
 #define TCP_START_DELAY_MS        2000
 
 /* WiFi接入点配置 (通过MSH命令 wifi join 使用) */
-#define WIFI_SSID "baohan"
-#define WIFI_PASSWORD "88888887"
+#define WIFI_SSID "rock"
+#define WIFI_PASSWORD "12345678"
 
 /* IIC初始化线程: 负责I2C总线初始化、TCA9548A探测 */
 static struct rt_thread iic_thread;
@@ -111,6 +113,12 @@ int main(void)
 
     /* 等待系统外设和驱动完全就绪 */
     rt_thread_mdelay(100);
+
+    /* 初始化 server_config 的互斥锁（必须在任何发现/TCP线程前调用） */
+    server_config_init();
+
+    /* 初始化发现模块（必须在任何发现线程前调用） */
+    pc_discovery_init();
 
     /* --- 线程1: IIC初始化 (一次性任务，完成后自动退出) --- */
     result = rt_thread_init(&iic_thread,
@@ -291,9 +299,40 @@ int main(void)
     rt_kprintf("[Main] Waiting for sensor calibration (6 seconds)...\n");
     rt_thread_mdelay(6000);  /* ICM需要250样本×20ms=5秒，加1秒余量 */
 
-    /* --- 联网成功后自动启动TCP客户端 --- */
+    /* --- 联网成功后自动启动PC发现线程和TCP客户端 --- */
     if (wifi_connected)
     {
+        /* Start PC UDP discovery first — it runs in the background and updates
+         * server_config when the PC is found. Even if the PC is not yet running,
+         * discovery continues indefinitely and will pick up the PC as soon as
+         * the user starts the Python frontend. */
+        result = pc_discovery_start();
+        if (result == RT_EOK)
+        {
+            rt_kprintf("[Main] PC discovery started (UDP :9108)\n");
+        }
+        else
+        {
+            rt_kprintf("[Main] PC discovery start failed: %d\n", result);
+        }
+
+        /* Wait up to 3 seconds for at least one valid PC broadcast.
+         * If timeout expires we still proceed — the default server_config
+         * will be used for the first TCP attempt, and discovery continues
+         * in the background. */
+        rt_kprintf("[Main] Waiting for PC discovery (up to 3s)...\n");
+        if (pc_discovery_wait_server(3000) == RT_EOK)
+        {
+            rt_kprintf("[Main] PC discovered, starting TCP client\n");
+        }
+        else
+        {
+            rt_kprintf("[Main] PC discovery timeout, using default address\n");
+        }
+
+        /* Now start TCP client — it will read the current server_config
+         * endpoint (discovered or default) and keep the generation counter
+         * to auto-reconnect whenever pc_discovery updates the address. */
         result = tcp_client_start(0, RT_NULL);
         if (result == 0)
         {

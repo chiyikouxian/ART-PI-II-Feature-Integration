@@ -17,6 +17,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <inttypes.h>
 
 #include <sys/time.h>
 #include <sys/socket.h>
@@ -24,7 +25,9 @@
 
 #include "tcp_client.h"
 #include "server_config.h"
+#include "pc_discovery.h"
 #include "adc_battery.h"
+#include "net_io.h"
 #include "../mpu6050/mpu6050_thread.h"
 #include "../vtx316/vtx316.h"
 
@@ -32,25 +35,35 @@
 #define DBG_LEVEL           DBG_INFO
 #include <rtdbg.h>
 
-/* 线程运行标志 */
+/* Link statistics. Exposed via the `tcp_left_stat` MSH command so the
+ * left-hand console can mirror what net_stat shows on the right hand. */
+typedef struct {
+    rt_uint32_t frames_sent;
+    rt_uint32_t frames_attempted;
+    rt_uint32_t short_writes;
+} left_tcp_stats_t;
+static left_tcp_stats_t g_left_stats;
+
+/* Thread control */
 static rt_bool_t tcp_running = RT_FALSE;
 static rt_thread_t tcp_thread = RT_NULL;
 
-/* 服务器地址（从环境变量读取，可通过命令行参数临时覆盖） */
-static char server_ip[16] = "";
-static int  server_port = 0;
-
-/* 发送缓冲区 - 使用静态分配避免栈溢出 */
+/* Send buffer — static to avoid stack overflow */
 static char send_buf[TCP_SEND_BUF_SIZE];
 
-/* 接收缓冲区 */
+/* Receive buffer */
 static char recv_buf[TCP_RECV_BUF_SIZE];
 
-/* 接收回调函数 */
+/* Receive callback */
 static tcp_recv_callback_t recv_callback = RT_NULL;
 
-/* 当前连接的socket (供 tcp_send_data 使用) */
+/* Current active socket (used by tcp_send_data helper) */
 static int current_sock = -1;
+
+/* The generation captured when the current connection was established.
+ * If this diverges from server_config_get_tcp_generation(), the
+ * peer endpoint has changed and we must gracefully reconnect. */
+static rt_uint32_t g_connected_gen = 0;
 /* Cache the latest BLE-received translated text until it is uploaded once. */
 static char translated_text_buf[257];
 static volatile rt_bool_t translated_text_pending = RT_FALSE;
@@ -301,20 +314,51 @@ static int build_json_data(char *buf, int size, rt_uint32_t count)
 
 /**
  * @brief  TCP客户端线程入口
+ *
+ * Each outer loop iteration reads a fresh snapshot of the TCP endpoint
+ * from server_config (which is protected by its own mutex). If the
+ * generation has changed since the last connection, we tear down the
+ * old socket and reconnect to the new address. This allows pc_discovery
+ * to update the endpoint without any cross-thread races or direct socket
+ * manipulation.
  */
 static void tcp_client_thread_entry(void *parameter)
 {
     int sock = -1;
     struct sockaddr_in server_addr;
     rt_uint32_t count = 0;
-    int ret;
+
+    /* Bootstrap: read the initial endpoint with its generation in ONE call. */
+    char server_ip[16];
+    int  server_port;
+    rt_uint32_t gen;
+    server_config_get_tcp_endpoint(server_ip, sizeof(server_ip), &server_port, &gen);
+    g_connected_gen = gen;
 
     LOG_I("TCP client thread started");
-    LOG_I("Target server: %s:%d", server_ip, server_port);
+    LOG_I("Target server: %s:%d (gen=%u)", server_ip, server_port, g_connected_gen);
 
     while (tcp_running)
     {
-        /* 创建 socket */
+        /* Wait for Wi-Fi to be ready before wasting cycles on a dead link */
+        if (!rt_wlan_is_ready())
+        {
+            LOG_W("TCP: waiting for Wi-Fi...");
+            rt_thread_mdelay(1000);
+            continue;
+        }
+
+        /* Grab fresh endpoint with its generation. If generation unchanged,
+         * keep using the current address (no DNS re-lookup or stale flip). */
+        server_config_get_tcp_endpoint(server_ip, sizeof(server_ip), &server_port, &gen);
+        if (gen != g_connected_gen)
+        {
+            LOG_W("Endpoint changed (gen %u -> %u), reconnecting...",
+                  g_connected_gen, gen);
+            g_connected_gen = gen;
+        }
+
+        /* Create socket */
         sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (sock < 0)
         {
@@ -323,20 +367,22 @@ static void tcp_client_thread_entry(void *parameter)
             continue;
         }
 
-        /* 设置发送超时 3秒 */
-        struct timeval timeout;
-        timeout.tv_sec = 3;
-        timeout.tv_usec = 0;
-        setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+        /* Set send timeout 3s */
+        {
+            struct timeval timeout;
+            timeout.tv_sec = 3;
+            timeout.tv_usec = 0;
+            setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+        }
 
-        /* 连接服务器 */
+        /* Connect */
         server_addr.sin_family = AF_INET;
         server_addr.sin_port = htons(server_port);
         server_addr.sin_addr.s_addr = inet_addr(server_ip);
         rt_memset(&(server_addr.sin_zero), 0, sizeof(server_addr.sin_zero));
 
         LOG_I("Connecting to %s:%d ...", server_ip, server_port);
-        ret = connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr));
+        int ret = connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr));
         if (ret < 0)
         {
             LOG_W("Connect failed, retry in 3s...");
@@ -348,11 +394,12 @@ static void tcp_client_thread_entry(void *parameter)
 
         LOG_I("Connected!");
         current_sock = sock;
+        g_connected_gen = gen;  /* use the snapshot gen captured above */
 
-        /* 注册VTX316作为TCP接收回调: TCP收到 "SAY:文本" 将转发到语音模块 */
+        /* Register VTX316 as TCP receive callback */
         tcp_set_recv_callback(vtx316_tcp_recv_handler);
 
-        /* 设置接收超时为 TCP_SEND_INTERVAL (100ms) */
+        /* Set receive timeout = TCP_SEND_INTERVAL */
         {
             struct timeval recv_tv;
             recv_tv.tv_sec = 0;
@@ -360,28 +407,59 @@ static void tcp_client_thread_entry(void *parameter)
             setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &recv_tv, sizeof(recv_tv));
         }
 
-        /* 持续收发数据 */
+        /* Send HELLO banner */
+        {
+            char hello[64];
+            int hl = rt_snprintf(hello, sizeof(hello),
+                "HELLO,L,%08x,%08x\n",
+                (unsigned int)rt_tick_get(), (unsigned int)rt_tick_get());
+            net_io_send_all(sock, hello, hl, 5000);
+        }
+
+        /* Inner send/receive loop */
         while (tcp_running)
         {
-            /* 发送传感器数据 */
+            /* Check if endpoint changed (e.g. PC IP changed while connected).
+             * Use atomic snapshot so IP and generation are always consistent. */
+            rt_uint32_t gen;
+            server_config_get_tcp_endpoint(server_ip, sizeof(server_ip), &server_port, &gen);
+            if (gen != g_connected_gen)
+            {
+                LOG_W("Endpoint changed (gen %u -> %u), reconnecting...",
+                      g_connected_gen, gen);
+                g_connected_gen = gen;
+                break;  /* exit inner loop, reconnect with new address */
+            }
+
+            /* Send sensor data */
             count++;
+            g_left_stats.frames_attempted++;
             int len = build_json_data(send_buf, sizeof(send_buf), count);
 
-            ret = send(sock, send_buf, len, 0);
-            if (ret <= 0)
+            rt_tick_t deadline = rt_tick_get() + (RT_TICK_PER_SECOND * 80 / 1000);
+            int sent = net_io_send_all_deadline(sock, send_buf, len,
+                                                TCP_SEND_INTERVAL - 10,
+                                                deadline);
+            if (sent < len)
             {
-                LOG_W("Send failed, reconnecting...");
+                g_left_stats.short_writes++;
+                if (sent < 0)
+                    LOG_W("Send failed, reconnecting...");
+                else
+                    LOG_W("Send short write %d/%d, reconnecting...", sent, len);
                 break;
             }
 
-            if (ret == len && translated_text_frame_seq != 0)
+            g_left_stats.frames_sent++;
+
+            if (translated_text_frame_seq != 0)
             {
                 translated_text_clear_if_seq(translated_text_frame_seq);
             }
 
-            LOG_D("Sent[%u]: %d bytes", count, ret);
+            LOG_D("Sent[%u]: %d bytes", count, sent);
 
-            /* 尝试接收服务器下发的数据 (超时100ms自动返回) */
+            /* Try to receive server data (timeout returns automatically) */
             {
                 int recv_len = recv(sock, recv_buf, sizeof(recv_buf) - 1, 0);
                 if (recv_len > 0)
@@ -401,11 +479,11 @@ static void tcp_client_thread_entry(void *parameter)
                     LOG_W("Server closed connection");
                     break;
                 }
-                /* recv_len < 0: 超时, 无数据, 继续下一轮发送 */
+                /* recv_len < 0: timeout, no data, continue */
             }
         }
 
-        /* 关闭连接 */
+        /* Close connection and loop to reconnect */
         current_sock = -1;
         if (sock >= 0)
         {
@@ -418,35 +496,24 @@ static void tcp_client_thread_entry(void *parameter)
 }
 
 /**
- * @brief  启动TCP客户端
- * @note   MSH命令: tcp_start [server_ip] [port]
- *         示例: tcp_start 192.168.1.100 9109
+ * @brief  启动TCP客户端（始终从 server_config 读取端点，支持动态切换）
+ * @note   MSH命令: tcp_start
+ *         若通过 pc_discovery 发现了 PC，将自动使用发现的地址。
  */
 int tcp_client_start(int argc, char **argv)
 {
+    (void)argc;
+    (void)argv;
+
     if (tcp_running)
     {
         rt_kprintf("TCP client is already running\n");
         return -1;
     }
 
-    /* 从环境变量读取配置 */
-    if (argc < 2)
-    {
-        server_config_get_tcp_ip(server_ip, sizeof(server_ip));
-        server_port = server_config_get_tcp_port();
-    }
-
-    /* 解析可选参数（临时覆盖） */
-    if (argc >= 2)
-    {
-        rt_strncpy(server_ip, argv[1], sizeof(server_ip) - 1);
-        server_ip[sizeof(server_ip) - 1] = '\0';
-    }
-    if (argc >= 3)
-    {
-        server_port = atoi(argv[2]);
-    }
+    /* Endpoint is always read from server_config at connect time.
+     * server_config_update_tcp_endpoint() may have already been called
+     * by pc_discovery before we reach here. */
 
     tcp_running = RT_TRUE;
 
@@ -460,7 +527,12 @@ int tcp_client_start(int argc, char **argv)
     if (tcp_thread != RT_NULL)
     {
         rt_thread_startup(tcp_thread);
-        rt_kprintf("TCP client started -> %s:%d\n", server_ip, server_port);
+        {
+            char ip[16];
+            int port;
+            server_config_get_tcp_endpoint(ip, sizeof(ip), &port, RT_NULL);
+            rt_kprintf("TCP client started -> %s:%d\n", ip, port);
+        }
     }
     else
     {
@@ -573,3 +645,20 @@ MSH_CMD_EXPORT(tcp_client_stop, Stop TCP client);
 /* 也导出简短别名 */
 MSH_CMD_EXPORT_ALIAS(tcp_client_start, tcp_start, Start TCP client: tcp_start [ip] [port]);
 MSH_CMD_EXPORT_ALIAS(tcp_client_stop, tcp_stop, Stop TCP client);
+
+/**
+ * @brief  Print left-hand TCP link statistics (issue 8: parity with the
+ *         right-hand net_stat). Mirrors tcp_link_stats_t from the right
+ *         project.
+ */
+static void cmd_tcp_left_stat(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    rt_kprintf("\n=== Left-hand TCP Link Statistics ===\n");
+    rt_kprintf(" frames_attempted: %u\n", g_left_stats.frames_attempted);
+    rt_kprintf(" frames_sent:      %u\n", g_left_stats.frames_sent);
+    rt_kprintf(" short_writes:     %u\n", g_left_stats.short_writes);
+    rt_kprintf("====================================\n");
+}
+MSH_CMD_EXPORT(cmd_tcp_left_stat, Show left-hand TCP link stats);

@@ -90,6 +90,13 @@ if __name__ == '__main__':
     from app.services.tcp_server import start_tcp_server
     start_tcp_server()
 
+    # PC UDP discovery: broadcasts ARTPI_PC,1,9109 to 255.255.255.255:9108
+    # every second so that left/right ART-Pi2 boards can discover the PC's
+    # current IP without re-flashing. Must start after TCP server so the
+    # TCP port number is stable at import time.
+    from app.services.discovery_service import start_discovery_service
+    start_discovery_service()
+
     # 启动应用
     print('=' * 50)
     print('手套数据采集系统启动中...')

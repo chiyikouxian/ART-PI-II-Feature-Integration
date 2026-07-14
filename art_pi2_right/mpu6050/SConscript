@@ -1,0 +1,13 @@
+from building import *
+
+cwd = GetCurrentDir()
+
+# 源文件列表
+src = Glob('*.c')
+
+# 头文件路径
+path = [cwd]
+
+group = DefineGroup('MPU6050', src, depend = [''], CPPPATH = path)
+
+Return('group')

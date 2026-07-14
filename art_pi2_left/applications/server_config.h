@@ -76,4 +76,43 @@ int server_config_set_stt_ip(const char *ip);
  */
 int server_config_set_stt_port(int port);
 
+/* ============================================================
+ * Thread-safe TCP endpoint — used by pc_discovery to atomically
+ * update IP + port + generation. tcp_client reads generation to
+ * detect remote endpoint changes without any cross-thread races.
+ * ============================================================ */
+
+/**
+ * @brief  Atomically update the TCP endpoint.
+ * @param  ip    New PC IP (null-terminated).
+ * @param  port  New TCP port.
+ * @return 1 if endpoint actually changed, 0 if same as current,
+ *         negative on error.
+ * @note   Incrementing the generation signals tcp_client to reconnect.
+ */
+int server_config_update_tcp_endpoint(const char *ip, int port);
+
+/**
+ * @brief  Initialise server_config. Call once from main() before
+ *         starting any discovery or TCP client threads.
+ */
+int server_config_init(void);
+
+/**
+ * @brief  Current generation counter. Increments each time
+ *         update_tcp_endpoint() is called with a different endpoint.
+ * @return Generation value.
+ */
+rt_uint32_t server_config_get_tcp_generation(void);
+
+/**
+ * @brief  Get a consistent snapshot of the current TCP endpoint.
+ * @param  ip         Output buffer for IP string.
+ * @param  size       Size of @p ip buffer (recommend >= 16).
+ * @param  port       [out] Current TCP port.
+ * @param  generation [out] Current generation value; pass RT_NULL if not needed.
+ */
+void server_config_get_tcp_endpoint(char *ip, int size, int *port,
+                                  rt_uint32_t *generation);
+
 #endif /* __SERVER_CONFIG_H__ */

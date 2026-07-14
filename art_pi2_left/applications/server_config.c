@@ -18,16 +18,47 @@ static int  g_tcp_server_port = DEFAULT_SERVER_PORT;
 static char g_stt_server_ip[16] = DEFAULT_SERVER_IP;
 static int  g_stt_server_port = DEFAULT_STT_SERVER_PORT;
 
+/* Thread-safe TCP endpoint update (used by pc_discovery).
+ * ip + port + generation are updated atomically inside this mutex.
+ * The mutex is initialised once by server_config_init() before any
+ * worker threads start — no lazy-init races. */
+static struct rt_mutex g_tcp_ep_lock;
+static rt_bool_t       g_tcp_ep_lock_inited = RT_FALSE;
+static rt_uint32_t     g_tcp_generation = 0;
+
+/* Forward declaration — implementation below; caller must hold g_tcp_ep_lock. */
+static int _update_tcp_endpoint_nolock(const char *ip, int port);
+
+/**
+ * @brief  Initialise server_config. Must be called once from main()
+ *         before any discovery or TCP client threads start.
+ */
+int server_config_init(void)
+{
+    if (!g_tcp_ep_lock_inited)
+    {
+        rt_mutex_init(&g_tcp_ep_lock, "srv_ep", RT_IPC_FLAG_PRIO);
+        g_tcp_ep_lock_inited = RT_TRUE;
+    }
+    return 0;
+}
+
 const char* server_config_get_tcp_ip(char *buf, int size)
 {
+    rt_mutex_take(&g_tcp_ep_lock, RT_WAITING_FOREVER);
     rt_strncpy(buf, g_tcp_server_ip, size - 1);
     buf[size - 1] = '\0';
+    rt_mutex_release(&g_tcp_ep_lock);
     return buf;
 }
 
 int server_config_get_tcp_port(void)
 {
-    return g_tcp_server_port;
+    int port;
+    rt_mutex_take(&g_tcp_ep_lock, RT_WAITING_FOREVER);
+    port = g_tcp_server_port;
+    rt_mutex_release(&g_tcp_ep_lock);
+    return port;
 }
 
 const char* server_config_get_stt_ip(char *buf, int size)
@@ -44,17 +75,18 @@ int server_config_get_stt_port(void)
 
 int server_config_set_tcp_ip(const char *ip)
 {
+    int result;
     if (ip == RT_NULL || ip[0] == '\0')
     {
         LOG_E("Invalid IP address");
         return -1;
     }
-
-    rt_strncpy(g_tcp_server_ip, ip, sizeof(g_tcp_server_ip) - 1);
-    g_tcp_server_ip[sizeof(g_tcp_server_ip) - 1] = '\0';
-
-    LOG_I("TCP server IP set to: %s", g_tcp_server_ip);
-    return 0;
+    rt_mutex_take(&g_tcp_ep_lock, RT_WAITING_FOREVER);
+    result = _update_tcp_endpoint_nolock(ip, g_tcp_server_port);
+    rt_mutex_release(&g_tcp_ep_lock);
+    if (result >= 0)
+        LOG_I("TCP server IP set to: %s", ip);
+    return result < 0 ? -1 : 0;
 }
 
 int server_config_set_tcp_port(int port)
@@ -64,9 +96,9 @@ int server_config_set_tcp_port(int port)
         LOG_E("Invalid port number: %d", port);
         return -1;
     }
-
-    g_tcp_server_port = port;
-
+    rt_mutex_take(&g_tcp_ep_lock, RT_WAITING_FOREVER);
+    (void)_update_tcp_endpoint_nolock(g_tcp_server_ip, port);
+    rt_mutex_release(&g_tcp_ep_lock);
     LOG_I("TCP server port set to: %d", port);
     return 0;
 }
@@ -99,6 +131,79 @@ int server_config_set_stt_port(int port)
     LOG_I("STT server port set to: %d", port);
     return 0;
 }
+
+/* ============================================================
+ * Internal helper — caller must hold g_tcp_ep_lock.
+ * Does NOT acquire the lock itself (allows nested calls).
+ * Returns 1 if endpoint changed, 0 if same, negative on error.
+ * ============================================================ */
+static int _update_tcp_endpoint_nolock(const char *ip, int port)
+{
+    rt_uint32_t old_gen = g_tcp_generation;
+
+    if (rt_strncmp(g_tcp_server_ip, ip, sizeof(g_tcp_server_ip)) == 0
+        && g_tcp_server_port == port)
+    {
+        return 0;  /* no-op: same endpoint */
+    }
+
+    rt_strncpy(g_tcp_server_ip, ip, sizeof(g_tcp_server_ip) - 1);
+    g_tcp_server_ip[sizeof(g_tcp_server_ip) - 1] = '\0';
+    g_tcp_server_port = port;
+    g_tcp_generation++;
+
+    LOG_I("TCP endpoint updated: %s:%d (gen %u -> %u)",
+          ip, port, old_gen, g_tcp_generation);
+    return 1;  /* positive = changed */
+}
+
+/* ============================================================
+ * Thread-safe TCP endpoint (for auto-discovery via pc_discovery).
+ * All three values (IP, port, generation) are updated atomically.
+ * ============================================================ */
+
+int server_config_update_tcp_endpoint(const char *ip, int port)
+{
+    int result;
+    /* Validate BEFORE acquiring the lock so we don't hold the mutex
+     * for an error path. */
+    if (ip == RT_NULL || ip[0] == '\0')
+        return -RT_ERROR;
+    if (port < 1 || port > 65535)
+        return -RT_ERROR;
+    rt_mutex_take(&g_tcp_ep_lock, RT_WAITING_FOREVER);
+    result = _update_tcp_endpoint_nolock(ip, port);
+    rt_mutex_release(&g_tcp_ep_lock);
+    return result;
+}
+
+rt_uint32_t server_config_get_tcp_generation(void)
+{
+    rt_uint32_t gen;
+    rt_mutex_take(&g_tcp_ep_lock, RT_WAITING_FOREVER);
+    gen = g_tcp_generation;
+    rt_mutex_release(&g_tcp_ep_lock);
+    return gen;
+}
+
+/** Thread-safe snapshot of IP + port + generation (single lock acquisition). */
+void server_config_get_tcp_endpoint(char *ip, int size, int *port,
+                                   rt_uint32_t *generation)
+{
+    rt_mutex_take(&g_tcp_ep_lock, RT_WAITING_FOREVER);
+    rt_strncpy(ip, g_tcp_server_ip, size - 1);
+    ip[size - 1] = '\0';
+    if (port)
+        *port = g_tcp_server_port;
+    if (generation)
+        *generation = g_tcp_generation;
+    rt_mutex_release(&g_tcp_ep_lock);
+}
+
+/* ============================================================
+ * Legacy API — not thread-safe but preserved for backward
+ * compatibility with existing MSH commands.
+ * ============================================================ */
 
 /* MSH命令: 设置服务器IP */
 static int cmd_set_server_ip(int argc, char **argv)

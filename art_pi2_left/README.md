@@ -8,6 +8,7 @@
 
 - **11路IMU传感器数据采集**：通过双TCA9548A I2C多路复用器，采集8路MPU6050（6轴）+ 2路MPU6050（6轴）+ 1路ICM-20948（9轴，含磁力计）
 - **WiFi TCP双向通信**：通过板载CYW43438 WiFi模块，以JSON格式将传感器数据实时发送到PC端，同时支持接收PC下发命令
+- **PC地址自动发现**：监听UDP `9108`广播并自动连接PC TCP `9109`，热点分配新IP后无需重新烧录
 - **锂电池电压监测**：ADC采集锂电池分压电压，8次滑动平均滤波，14级精细电池图标显示
 - **OLED实时显示**：128×64 SH1106 OLED屏幕，顶部状态栏显示电池电压/电量图标，下方3行显示串口接收文本
 - **串口文本接收显示**：UART1接收外部串口文本，按行解析后滚动显示到OLED
@@ -36,8 +37,11 @@
 │    → ADC1 CH12 (PC2) 采集锂电池分压                          │
 │    → 1Hz采样, 8次滑动平均滤波                                │
 │                                                             │
-│  Thread 5: tcp_cli   [优先级22, 栈4KB] (MSH命令动态启停)     │
-│    → WiFi TCP发送JSON传感器数据到PC                          │
+│  Thread 5: pc_disc  [优先级24, 栈2KB]                       │
+│    → UDP 9108监听PC地址广播，WiFi重连后重建socket             │
+│                                                             │
+│  Thread 6: tcp_cli   [优先级22, 栈4KB]                       │
+│    → WiFi TCP 9109发送JSON数据，端点变化后自动重连            │
 │    → 支持双向通信: 接收PC下发命令                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -95,11 +99,13 @@ ADC 12位分辨率, 参考电压 3.3V
 ## 项目目录结构
 
 ```
-art_pi2_right/
+art_pi2_left/
 ├── applications/                   # 应用层
 │   ├── main.c                      # 主入口, 线程创建, LED心跳
 │   ├── adc_battery.c/h             # 锂电池ADC采集 (HAL直驱, 滑动滤波)
-│   └── tcp_client.c/h              # WiFi TCP双向通信 (JSON格式)
+│   ├── tcp_client.c/h              # PC TCP 9109双向通信 (JSON格式)
+│   ├── pc_discovery.c/h            # UDP 9108 PC地址自动发现
+│   └── server_config.c/h            # 线程安全端点与generation管理
 ├── IIC/                            # I2C通信模块
 │   ├── iic_thread.c/h              # I2C/OLED初始化线程
 │   ├── tca9548a.c/h                # TCA9548A 8通道I2C多路复用器驱动
@@ -186,13 +192,25 @@ packages/wifi-host-driver-latest/wifi-host-driver/WiFi_Host_Driver/resources/fir
 
 ## 使用方法
 
+### PC地址自动发现
+
+PC前端每秒发送 `ARTPI_PC,1,9109\n` 到两种广播地址，并每2秒对当前 `/24` 热点子网发送一次单播发现兜底。开发板仅信任UDP来源IPv4地址，并严格校验magic、版本和端口。端点变化会递增generation，`tcp_client`在运行循环中检测变化并自动重连。
+
+启动顺序为：WiFi就绪 → `pc_discovery_start()` → 最多等待3秒首个广播 → `tcp_client_start()`。等待超时不会停止后台发现，后续收到广播仍会更新端点并触发重连。
+
+可使用以下MSH命令查看状态：
+
+```bash
+msh> pc_disc_stat
+```
+
 ### MSH命令
 
 ```bash
 # 连接WiFi
 msh> wifi join <SSID> <password>
 
-# 启动TCP数据传输 (默认连接 192.168.6.92:8266)
+# 手动启动TCP数据传输（正常上电流程会自动启动并使用发现的PC端点）
 msh> tcp_start [ip] [port]
 
 # 停止TCP传输
@@ -205,7 +223,7 @@ Battery: 3.850V  71%
 
 ### TCP数据格式
 
-传感器数据以JSON格式通过WiFi TCP发送到PC端，包含11路IMU数据和电池电压信息，发送频率10Hz。
+传感器数据以JSON格式通过WiFi TCP `9109`发送到PC端，包含11路IMU数据和电池电压信息，发送频率10Hz。TCP连接建立后会发送HELLO会话横幅。
 
 ---
 
@@ -216,3 +234,4 @@ Battery: 3.850V  71%
 3. I2C2总线上OLED和MPU6050传感器共享，通过互斥锁保护，切勿在未获取锁的情况下直接操作
 4. 电池ADC采集使用STM32 HAL库直接驱动（非RT-Thread ADC框架），需确保 `stm32h7rsxx_hal_conf.h` 中已启用 `HAL_ADC_MODULE_ENABLED`
 5. OLED通过TCA9548A通道3连接，每次操作前需重新选择通道
+6. Windows防火墙需允许Python专用网络通信；PC与开发板必须连接同一热点且热点不能启用客户端隔离
