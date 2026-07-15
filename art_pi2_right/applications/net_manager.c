@@ -36,8 +36,9 @@
 #define DBG_LEVEL           DBG_INFO
 #include <rtdbg.h>
 
-/* Same SSID/PSK as main.c autostart. If you ever split these into
- * Kconfig we'll follow that; for now hard-coded keeps the diff tiny. */
+/* WiFi connection source for the right hand.
+ * NET_MGR_SSID / NET_MGR_PASSWORD are the authoritative credentials
+ * used by net_manager when calling rt_wlan_connect(). */
 #define NET_MGR_SSID        "baohan"
 #define NET_MGR_PASSWORD    "88888887"
 

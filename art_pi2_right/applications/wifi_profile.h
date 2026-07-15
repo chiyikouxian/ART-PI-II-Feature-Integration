@@ -1,6 +1,8 @@
 /**
  * @file wifi_profile.h
- * @brief WiFi配置文件管理 - 支持保存多个WiFi配置并快速切换
+ * @brief WiFi配置文件管理 - 运行时内存管理多个 WiFi 配置
+ * @note  当前使用静态数组 profiles[]，不写入 Flash / 文件系统 /
+ *        环境变量，**不支持持久化**。开发板重启后所有配置丢失。
  */
 
 #ifndef __WIFI_PROFILE_H__

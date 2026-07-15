@@ -11,8 +11,12 @@
 使用方法：
   1. pip install websocket-client
   2. python xfyun_proxy.py
-  3. 在 voice_assistant_config.h 中设置:
-     #define XFYUN_STT_URL "http://<你电脑的IP>:8080/stt"
+  3. 在开发板 MSH 中运行：
+       set_stt_ip <本电脑的 WLAN IP>
+       va_reload_stt
+     STT URL 由 voice_assistant.c 在运行时动态拼装为
+       http://<stt_ip>:8080/stt
+     因此无需修改固件源码或重新烧录。
 
 依赖：
   pip install websocket-client
@@ -346,8 +350,10 @@ def main():
     print(f"  API_KEY:   {API_KEY[:8]}...")
     print(f"  监听地址:  http://{local_ip}:{PROXY_PORT}")
     print()
-    print("  在 voice_assistant_config.h 中设置:")
-    print(f'  #define XFYUN_STT_URL  "http://{local_ip}:{PROXY_PORT}/stt"')
+    print("  在开发板 MSH 中运行以下命令，把 STT 目标指向本机:")
+    print(f"    set_stt_ip {local_ip}")
+    print(f"    va_reload_stt")
+    print("  完成后，固件将以 http://{0}:{1}/stt 作为 STT URL。".format(local_ip, PROXY_PORT))
     print("=" * 50)
     print()
     print("等待 STM32 请求...")

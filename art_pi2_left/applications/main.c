@@ -64,8 +64,8 @@ int left_ble_app_init(void);
 #define TCP_START_DELAY_MS        2000
 
 /* WiFi接入点配置 (通过MSH命令 wifi join 使用) */
-#define WIFI_SSID "rock"
-#define WIFI_PASSWORD "12345678"
+#define WIFI_SSID "baohan"
+#define WIFI_PASSWORD "88888887"
 
 /* IIC初始化线程: 负责I2C总线初始化、TCA9548A探测 */
 static struct rt_thread iic_thread;

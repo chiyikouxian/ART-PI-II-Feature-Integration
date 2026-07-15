@@ -1,6 +1,6 @@
 /**
  * @file server_config.c
- * @brief 服务器IP配置管理实现（使用全局变量存储）
+ * @brief 服务器IP配置管理实现（运行时内存配置，重启后恢复默认值）
  */
 
 #include <rtthread.h>
@@ -201,8 +201,26 @@ void server_config_get_tcp_endpoint(char *ip, int size, int *port,
 }
 
 /* ============================================================
- * Legacy API — not thread-safe but preserved for backward
- * compatibility with existing MSH commands.
+ * Concurrency model
+ * ------------------------------------------------------------
+ * - TCP endpoint API (server_config_get_tcp_ip/port/endpoint,
+ *   server_config_set_tcp_ip/port/update_tcp_endpoint): protected
+ *   by g_tcp_ep_lock, initialised once by server_config_init() before
+ *   worker threads start. IP + port + generation are updated
+ *   atomically; tcp_client reads generation to detect remote
+ *   endpoint changes without any cross-thread races.
+ *
+ * - STT endpoint API (server_config_get_stt_ip/port and
+ *   server_config_set_stt_ip/port): currently plain global reads/
+ *   writes. The left hand has no STT consumer today; these are
+ *   retained for compatibility and future extension. If/when a
+ *   left-hand STT thread is added, revisit concurrency here.
+ *
+ * - MSH wrappers (cmd_set_*, cmd_get_*): forward to the API above;
+ *   preserved as the public configuration entry points.
+ * ============================================================
+ * MSH wrappers — preserved for backward compatibility. They simply
+ * forward to the public API above.
  * ============================================================ */
 
 /* MSH命令: 设置服务器IP */

@@ -15,7 +15,7 @@
 #include <rtthread.h>
 
 /* Rock服务器配置 */
-#define ROCK_SERVER_IP       "192.168.245.50"
+#define ROCK_SERVER_IP       "192.168.247.50"
 #define ROCK_SERVER_PORT     9102          /* 右手端口 */
 
 /* 线程配置 */

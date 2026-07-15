@@ -60,15 +60,10 @@ int right_ble_app_init(void);
 /* LED心跳指示灯引脚: PO5 */
 #define LED_PIN GET_PIN(O, 5)
 
-/* WiFi接入点配置 (通过MSH命令 wifi join 使用) */
-#define WIFI_SSID "baohan"
-#define WIFI_PASSWORD "88888887"
-
 /* 自启动线程配置 */
 #define AUTOSTART_THREAD_STACK_SIZE   4096
 #define AUTOSTART_THREAD_PRIORITY     25
 #define AUTOSTART_WIFI_TIMEOUT_MS     15000   /* WiFi连接超时15秒 */
-#define AUTOSTART_WIFI_RETRY_MAX      3       /* WiFi最大重试次数 */
 
 /* IIC/OLED线程: 负责I2C总线初始化、TCA9548A探测、OLED显示初始化 */
 static struct rt_thread iic_thread;

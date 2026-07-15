@@ -1,6 +1,6 @@
 /**
  * @file wifi_profile.c
- * @brief WiFi配置文件管理实现
+ * @brief WiFi配置文件管理实现 (运行时内存，重启后丢失)
  */
 
 #include <rtthread.h>
@@ -13,7 +13,7 @@
 #define DBG_LVL DBG_INFO
 #include <rtdbg.h>
 
-/* 配置文件存储 */
+/* 配置文件存储（运行时内存，重启后丢失） */
 static wifi_profile_t profiles[MAX_PROFILES];
 
 /* 当前使用的配置索引 (-1表示无) */
@@ -111,7 +111,7 @@ int wifi_profile_add(const char *name, const char *ssid,
 
     profiles[idx].valid = RT_TRUE;
 
-    LOG_I("Profile '%s' saved", name);
+    LOG_I("Profile '%s' saved (in-memory only)", name);
     return 0;
 }
 
@@ -215,7 +215,7 @@ void wifi_profile_list(void)
         rt_kprintf("No profiles saved\n");
     }
 
-    rt_kprintf("\nTotal: %d/%d\n\n", count, MAX_PROFILES);
+    rt_kprintf("\nTotal: %d/%d (in-memory only, lost on reboot)\n\n", count, MAX_PROFILES);
 }
 
 void wifi_profile_current(void)
@@ -298,7 +298,7 @@ static int cmd_profile(int argc, char **argv)
 {
     if (argc < 2)
     {
-        rt_kprintf("WiFi Profile Manager\n");
+        rt_kprintf("WiFi Profile Manager (in-memory only, lost on reboot)\n");
         rt_kprintf("Usage:\n");
         rt_kprintf("  profile add <name> <ssid> <pwd> <ip> [stt_ip]\n");
         rt_kprintf("  profile del <name>\n");

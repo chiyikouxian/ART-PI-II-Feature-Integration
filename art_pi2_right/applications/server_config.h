@@ -1,7 +1,10 @@
 /**
  * @file server_config.h
- * @brief 服务器IP配置管理 - 使用环境变量持久化存储
- * @note  通过MSH命令动态设置IP，无需重新烧录
+ * @brief 服务器IP配置管理 - 运行时内存配置
+ * @note  当前使用 RAM 全局变量存储，**不支持持久化**。
+ *        开发板重启后，所有 IP/端口恢复为编译期默认值。
+ *        通过 MSH 命令可动态调整当前运行配置:
+ *          set_server_ip / get_server_ip / set_stt_ip / get_stt_ip
  */
 
 #ifndef __SERVER_CONFIG_H__
@@ -9,13 +12,7 @@
 
 #include <rtthread.h>
 
-/* 环境变量名称 */
-#define ENV_SERVER_IP       "server_ip"
-#define ENV_SERVER_PORT     "server_port"
-#define ENV_STT_SERVER_IP   "stt_server_ip"
-#define ENV_STT_SERVER_PORT "stt_server_port"
-
-/* 默认配置 (当环境变量未设置时使用) */
+/* 默认配置 (编译期默认值，重启后恢复这些值) */
 #define DEFAULT_SERVER_IP       "192.168.157.217"
 #define DEFAULT_SERVER_PORT     9109
 #define DEFAULT_STT_SERVER_PORT 8080
