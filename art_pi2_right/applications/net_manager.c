@@ -39,8 +39,8 @@
 /* WiFi connection source for the right hand.
  * NET_MGR_SSID / NET_MGR_PASSWORD are the authoritative credentials
  * used by net_manager when calling rt_wlan_connect(). */
-#define NET_MGR_SSID        "baohan"
-#define NET_MGR_PASSWORD    "88888887"
+#define NET_MGR_SSID        "rock"
+#define NET_MGR_PASSWORD    "12345678"
 
 #define NET_MGR_THREAD_STACK_SIZE   2048
 #define NET_MGR_THREAD_PRIORITY     10   /* low: should never preempt TCP */

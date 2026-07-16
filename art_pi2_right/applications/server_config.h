@@ -13,7 +13,7 @@
 #include <rtthread.h>
 
 /* 默认配置 (编译期默认值，重启后恢复这些值) */
-#define DEFAULT_SERVER_IP       "192.168.157.217"
+#define DEFAULT_SERVER_IP       "192.168.245.50"
 #define DEFAULT_SERVER_PORT     9109
 #define DEFAULT_STT_SERVER_PORT 8080
 

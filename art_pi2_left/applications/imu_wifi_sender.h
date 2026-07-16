@@ -15,7 +15,7 @@
 #include <rtthread.h>
 
 /* Rock服务器配置 */
-#define ROCK_SERVER_IP       "192.168.247.50"
+#define ROCK_SERVER_IP       "192.168.245.50"
 #define ROCK_SERVER_PORT     9101          /* 左手端口 */
 
 /* 线程配置 */
@@ -61,5 +61,35 @@ void imu_wifi_sender_reset_frame_seq(void);
  * @param  len  数据长度
  */
 void imu_wifi_sender_send_model(const char *data, int len);
+
+/**
+ * @brief  ROCK 推理模式（决定滑动窗口使用词级还是句级参数）。
+ */
+typedef enum {
+    INFER_MODE_WORD     = 0,
+    INFER_MODE_SENTENCE = 1,
+} inference_mode_t;
+
+/**
+ * @brief  查询当前期望的 ROCK 推理模式。
+ *
+ * @note   在 imu_wifi_sender 启动前调用，结果为默认值 INFER_MODE_SENTENCE。
+ *         线程安全（原子读取）。
+ */
+inference_mode_t imu_wifi_sender_get_inference_mode(void);
+
+/**
+ * @brief  触发 ROCK 推理模式切换请求。
+ *
+ *         本调用不直接发送数据，仅把“期望模式 + generation”原子地翻转，
+ *         真正的协议发送由 imu_wifi_sender 线程在同一 socket 上完成。
+ *
+ * @note   - 按键线程与 IMU WiFi 线程均可调用，线程安全。
+ *         - 在 imu_wifi_sender 尚未启动时调用也安全（状态被保存，
+ *           下一次连接建立后第一帧数据前会自动发布）。
+ *         - 不依赖任何额外的 mutex/event 初始化。
+ *         - generation 按无符号整数自然回绕，比较时仅判等。
+ */
+void imu_wifi_sender_request_inference_mode_switch(void);
 
 #endif /* __IMU_WIFI_SENDER_H */

@@ -1,6 +1,6 @@
 /**
  * @file button.h
- * @brief PE0按键驱动 - 按下播报当前电量
+ * @brief PE0按键驱动 - 按下切换ROCK推理模式（单词/句子）
  * @note  按键接在GND与PE0之间，内部上拉，低电平有效
  */
 

@@ -64,8 +64,8 @@ int left_ble_app_init(void);
 #define TCP_START_DELAY_MS        2000
 
 /* WiFi接入点配置 (通过MSH命令 wifi join 使用) */
-#define WIFI_SSID "baohan"
-#define WIFI_PASSWORD "88888887"
+#define WIFI_SSID "rock"
+#define WIFI_PASSWORD "12345678"
 
 /* IIC初始化线程: 负责I2C总线初始化、TCA9548A探测 */
 static struct rt_thread iic_thread;
@@ -83,7 +83,7 @@ static rt_uint8_t mpu6050_thread_stack[MPU6050_THREAD_STACK_SIZE];
 static struct rt_thread battery_thread;
 static rt_uint8_t battery_thread_stack[BATTERY_THREAD_STACK_SIZE];
 
-/* 按键线程: PE0按下播报当前电量 */
+/* 按键线程: PE0按下切换ROCK推理模式（单词/句子） */
 static struct rt_thread button_thread;
 static rt_uint8_t button_thread_stack[BUTTON_THREAD_STACK_SIZE];
 
@@ -275,7 +275,7 @@ int main(void)
         rt_kprintf("[Main] Failed to create Battery ADC thread\n");
     }
 
-    /* --- 线程5: PE0按键 - 按下播报当前电量 (常驻运行) --- */
+    /* --- 线程5: PE0按键 - 按下切换ROCK推理模式（单词/句子）(常驻运行) --- */
     result = rt_thread_init(&button_thread,
                             "button",
                             button_thread_entry,

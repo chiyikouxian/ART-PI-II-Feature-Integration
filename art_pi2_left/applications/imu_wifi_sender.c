@@ -60,6 +60,32 @@ static rt_uint32_t imu_parse_err = 0;
 /* 帧序号 */
 static volatile uint32_t frame_seq = 0;
 
+/* ── ROCK 推理模式状态 ────────────────────────────────────────────────────
+ * g_infer_mode              : 当前期望的 ROCK 推理模式。Boot 默认
+ *                             INFER_MODE_SENTENCE；PE0 每按一次翻转一次。
+ * g_mode_generation         : 用户翻转次数；用来标记"是否需要重新发送"。
+ * g_mode_generation_sent    : 上一次实际写到 socket 的 generation。
+ *                             boot 默认 0，确保首次连接时若用户从未按键，
+ *                             generation == generation_sent 不会自动发送。
+ * g_mode_has_user_selection : 用户是否至少按过一次 PE0。boot 默认 RT_FALSE。
+ *                             仅在用户主动按过键后，TCP 重连才需要重发当前
+ *                             模式（否则 ROCK 默认 sentence 与本端默认一致，
+ *                             发送是浪费）。
+ * 与 IMU WiFi 线程的交互：imu_wifi_sender_request_inference_mode_switch()
+ * （按键线程可调用）会原子地翻转 mode+generation，并置 user_selection=TRUE。
+ * imu_wifi_sender 线程在每次发 IMU 数据前检查 generation_sent != generation，
+ * 若是则推送一行 mode 字面量（"word\n" 或 "sentence\n"），然后才发 IMU 帧。
+ */
+static volatile inference_mode_t g_infer_mode              = INFER_MODE_SENTENCE;
+static volatile uint32_t          g_mode_generation         = 0;
+static volatile uint32_t          g_mode_generation_sent    = 0;
+static volatile rt_bool_t         g_mode_has_user_selection = RT_FALSE;
+
+static const char *infer_mode_str(inference_mode_t m)
+{
+    return (m == INFER_MODE_SENTENCE) ? "sentence" : "word";
+}
+
 /**
  * @brief  获取并递增帧序号（线程安全）
  */
@@ -288,6 +314,44 @@ static void imu_wifi_sender_thread_entry(void *parameter)
          * previous session can't fire as soon as the new socket goes up. */
         rx_acc_len = 0;
 
+        /* On a fresh ROCK connection, decide whether the inference mode
+         * must be re-published:
+         *   - If the user has never pressed PE0, both ART-Pi and ROCK boot
+         *     in sentence mode. No mode command is needed on this socket;
+         *     we align g_mode_generation_sent = cur_gen so the per-frame
+         *     check below treats the connection as already-up-to-date.
+         *   - If the user has flipped the mode at least once, ROCK may have
+         *     been rebooted and lost that state. Force a re-publish on
+         *     this socket by setting g_mode_generation_sent = cur_gen - 1. */
+        {
+            uint32_t cur_gen;
+            inference_mode_t mode;
+            rt_bool_t        has_user_selection;
+            rt_base_t level = rt_hw_interrupt_disable();
+            cur_gen            = g_mode_generation;
+            mode               = g_infer_mode;
+            has_user_selection = g_mode_has_user_selection;
+            if (has_user_selection)
+            {
+                g_mode_generation_sent = (uint32_t)(cur_gen - 1u);
+            }
+            else
+            {
+                g_mode_generation_sent = cur_gen;
+            }
+            rt_hw_interrupt_enable(level);
+
+            if (has_user_selection)
+            {
+                LOG_I("Inference mode will be re-sent on this socket: %s (gen=%u)",
+                      infer_mode_str(mode), (unsigned)cur_gen);
+            }
+            else
+            {
+                LOG_I("Inference mode defaults to sentence; no initial command required");
+            }
+        }
+
         while (imu_wifi_running)
         {
             /* 等待到下一个发送时刻 (90ms间隔) */
@@ -300,6 +364,53 @@ static void imu_wifi_sender_thread_entry(void *parameter)
                 rt_thread_mdelay(interval_ticks - elapsed);
             }
             last_send_tick = rt_tick_get();
+
+            /* Publish the current inference mode BEFORE the first IMU
+             * frame on this socket (and on every later mode switch).
+             * This is independent of operation_mode_stream_enabled() —
+             * even if we are in AUTO_STANDBY / MANUAL_SLEEP / WAITING_STOP
+             * the mode line must still go out so ROCK knows which
+             * sliding-window family is active.
+             *
+             * Wire format: just "word\n" or "sentence\n" — no protocol
+             * prefix. ROCK splits on '\n' and dispatches the literal to
+             * the inference engine. */
+            {
+                uint32_t cur_gen, sent_gen;
+                inference_mode_t mode;
+                rt_base_t level = rt_hw_interrupt_disable();
+                cur_gen  = g_mode_generation;
+                sent_gen = g_mode_generation_sent;
+                mode     = g_infer_mode;
+                rt_hw_interrupt_enable(level);
+
+                if (cur_gen != sent_gen)
+                {
+                    char mode_line[16];
+                    int  mode_len = rt_snprintf(mode_line,
+                                                sizeof(mode_line),
+                                                "%s\n",
+                                                infer_mode_str(mode));
+                    rt_tick_t mode_deadline = rt_tick_get() +
+                                              (RT_TICK_PER_SECOND * 50 / 1000);
+                    int mode_sent = net_io_send_all_deadline(
+                        sock, mode_line, mode_len,
+                        IMU_WIFI_SEND_DEADLINE_MS, mode_deadline);
+                    if (mode_sent >= mode_len)
+                    {
+                        g_mode_generation_sent = cur_gen;
+                        LOG_I("Inference mode sent to Rock: %s (gen=%u)",
+                              infer_mode_str(mode),
+                              (unsigned)cur_gen);
+                    }
+                    else
+                    {
+                        LOG_W("Inference mode send failed: mode=%s sent=%d/%d",
+                              infer_mode_str(mode), mode_sent, mode_len);
+                        break;
+                    }
+                }
+            }
 
             /* 检查操作模式：只有在RUNNING状态才发送数据 */
             if (operation_mode_stream_enabled())
@@ -470,4 +581,30 @@ void imu_wifi_sender_send_model(const char *data, int len)
     {
         LOG_W("MODEL queue full, dropping %d-byte message", len);
     }
+}
+
+inference_mode_t imu_wifi_sender_get_inference_mode(void)
+{
+    rt_base_t level = rt_hw_interrupt_disable();
+    inference_mode_t cur = g_infer_mode;
+    rt_hw_interrupt_enable(level);
+    return cur;
+}
+
+void imu_wifi_sender_request_inference_mode_switch(void)
+{
+    inference_mode_t next;
+    uint32_t new_gen;
+
+    rt_base_t level = rt_hw_interrupt_disable();
+    next = (g_infer_mode == INFER_MODE_WORD) ? INFER_MODE_SENTENCE
+                                              : INFER_MODE_WORD;
+    g_infer_mode = next;
+    g_mode_generation++;
+    g_mode_has_user_selection = RT_TRUE;
+    new_gen = g_mode_generation;
+    rt_hw_interrupt_enable(level);
+
+    LOG_I("ROCK inference mode requested: %s (gen=%u)",
+          infer_mode_str(next), (unsigned)new_gen);
 }
