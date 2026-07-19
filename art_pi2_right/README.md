@@ -6,12 +6,15 @@
 
 ### 核心功能
 
-- **11路IMU传感器数据采集**：通过双TCA9548A I2C多路复用器，采集8路MPU6050（6轴）+ 2路MPU6050（6轴）+ 1路MPU9250（9轴，含磁力计）
+- **11路IMU传感器数据采集**：通过双TCA9548A I2C多路复用器，采集8路MPU6050（6轴）+ 2路MPU6050（6轴）+ 1路ICM-20948（9轴，含AK09916磁力计）
 - **WiFi TCP双向通信**：通过板载CYW43438 WiFi模块，以JSON格式将传感器数据实时发送到PC端，同时支持接收PC下发命令
+- **ROCK原始IMU上行**：通过 `imu_wifi_sender` 线程每90 ms向ROCK边缘设备 `192.168.221.239:9102` 发送 `[DATA]<ts>,right,<seq>,69 raw ints>\n`，运行于 `OP_STATE_RUNNING`，受 operation-mode 状态机门控
 - **PC地址自动发现**：监听UDP `9108`广播并自动连接PC TCP `9109`，热点分配新IP后无需重新烧录
+- **语音助手旁路（右手专属）**：INMP441 麦克风（I2S/SAI）+ `voice_assistant` 状态机，监听 ROCK 下发的 `SAY:` 文本但**不本地播音**，仅记录并通知 operation-mode 状态机；本地播音仅限 `MODE:AUTO` + `OP_STATE_AUTO_STANDBY` 期间用于本地提示
 - **锂电池电压监测**：ADC采集锂电池分压电压，8次滑动平均滤波，14级精细电池图标显示
 - **OLED实时显示**：128×64 SH1106 OLED屏幕，顶部状态栏显示电池电压/电量图标，下方3行显示串口接收文本
 - **串口文本接收显示**：UART1接收外部串口文本，按行解析后滚动显示到OLED
+- **上电自启动 `autostart` 线程**：一次性 7 步串联（WiFi → net_manager → PC 发现 → TCP → IMU WiFi → 语音助手 → operation-mode ready），失败时本地 LED 心跳降频告警
 
 ---
 
@@ -21,6 +24,13 @@
 ┌─────────────────────────────────────────────────────────────┐
 │  main线程: LED心跳闪烁 (PO5, 500ms) + 创建以下子线程         │
 ├─────────────────────────────────────────────────────────────┤
+│  Thread 0: autostart [优先级25, 栈4KB]                       │
+│    → 上电一次性串联:                                          │
+│       WiFi join → net_manager_start → pc_discovery_start     │
+│       → tcp_client_start → imu_wifi_sender_start             │
+│       → voice_assistant_init → operation_mode_ready          │
+│    → 失败时 LED 心跳降频告警, 主线程继续运行                  │
+│                                                             │
 │  Thread 1: iic_drv   [优先级20, 栈2KB]                      │
 │    → 初始化I2C2互斥锁、TCA9548A探测、OLED初始化              │
 │    → 一次性任务，完成后自动退出                               │
@@ -43,6 +53,15 @@
 │  Thread 6: tcp_cli   [优先级22, 栈4KB]                       │
 │    → WiFi TCP 9109发送JSON数据，端点变化后自动重连            │
 │    → 支持双向通信: 接收PC下发命令                             │
+│                                                             │
+│  Thread 7: imu_wifi_sender [优先级21, 栈4KB]                │
+│    → 每90 ms向ROCK 192.168.221.239:9102发送原始CSV            │
+│    → 仅在 OP_STATE_RUNNING 时输出 (受 operation_mode gate)   │
+│    → 接收 ROCK 下发的 CMD:* / MODE:* / SAY: 并更新状态机     │
+│                                                             │
+│  后台任务: voice_assistant                                   │
+│    → INMP441 (I2S/SAI) + ai_cloud_service + audio_process    │
+│    → 触发式录音, SAY: 文本路由, 不本地播音                    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -55,8 +74,9 @@ STM32H7RS (ART-Pi2) 引脚分配:
 
 I2C1 (PB8-SCL, PB9-SDA) → TCA9548A #1 (0x70) → CH0~CH7: 8× MPU6050 (6-DOF)
 I2C2 (PE1-SCL, PE2-SDA) → TCA9548A #2 (0x70) → CH0~CH1: 2× MPU6050 (6-DOF)
-                                               → CH2:     MPU9250 (9-DOF, 含AK8963磁力计)
+                                               → CH2:     ICM-20948 (9-DOF, 含AK09916磁力计)
                                                → CH3:     OLED SH1106 (128×64)
+I2S/SAI (麦克风) → INMP441 (右手语音助手旁路, 不本地播音)
 
 UART1 (PF13-TX, PF12-RX) ← 外部串口输入 (P1排针)
 UART4 (PD0-TX, PD1-RX)   → 控制台 (MSH Shell)
@@ -105,7 +125,19 @@ art_pi2_right/
 │   ├── adc_battery.c/h             # 锂电池ADC采集 (HAL直驱, 滑动滤波)
 │   ├── tcp_client.c/h              # PC TCP 9109双向通信 (JSON格式)
 │   ├── pc_discovery.c/h            # UDP 9108 PC地址自动发现
-│   └── server_config.c/h            # 线程安全端点与generation管理
+│   ├── server_config.c/h            # 线程安全端点与generation管理
+│   ├── imu_wifi_sender.c/h         # ROCK 9102 原始CSV上行 + CMD/MODE/SAY解析
+│   ├── operation_mode.c/h          # 状态机 (AUTO/MANUAL + RUNNING/STANDBY/SLEEP)
+│   ├── voice_assistant.c/h         # 右手语音助手状态机
+│   ├── ai_cloud_service.c/h        # 云端语音识别/合成 HTTP 客户端
+│   ├── audio_capture_inmp441.c/h   # INMP441 I2S/SAI 录音 + VAD
+│   ├── audio_process.c/h           # 音频前处理
+│   ├── drv_sai_inmp441.c/h         # SAI 驱动注册
+│   ├── hal_timer_rtthread.c/h      # 录音定时器
+│   ├── net_manager.c/h             # WiFi 网络管理 (重连/状态广播)
+│   ├── net_stat.c                  # MSH `net_stat` 状态查询
+│   ├── wifi_profile.c/h            # MSH `profile` 凭据管理
+│   └── imu_ble_service.c/h         # 历史BLE服务 (默认不启用)
 ├── IIC/                            # I2C通信模块
 │   ├── iic_thread.c/h              # I2C/OLED初始化线程
 │   ├── tca9548a.c/h                # TCA9548A 8通道I2C多路复用器驱动
@@ -117,7 +149,7 @@ art_pi2_right/
 │   └── uart_oled_thread.c/h        # UART1接收 + OLED显示 + 电池状态栏
 ├── mpu6050/                        # IMU传感器模块
 │   ├── mpu6050_thread.c/h          # 多路传感器采集线程 (11通道)
-│   └── mpu6050.c/h                 # MPU6050/MPU9250底层I2C寄存器驱动
+│   └── mpu6050.c/h                 # MPU6050/ICM-20948底层I2C寄存器驱动
 ├── board/                          # 板级支持
 │   ├── board.c/h                   # 板级初始化
 │   ├── CubeMX_Config/              # STM32CubeMX生成的HAL配置
@@ -154,7 +186,7 @@ rt_err_t mpu_get_channel_data(int ch, mpu_channel_data_t *out);
 /* 通道分配:
  *   ch0~ch7:  I2C1 TCA9548A CH0~CH7 → MPU6050 (6-DOF: ax,ay,az,gx,gy,gz)
  *   ch8~ch9:  I2C2 TCA9548A CH0~CH1 → MPU6050 (6-DOF)
- *   ch10:     I2C2 TCA9548A CH2     → MPU9250 (9-DOF: +mx,my,mz磁力计)
+ *   ch10:     I2C2 TCA9548A CH2     → ICM-20948 (9-DOF: +mx,my,mz磁力计)
  */
 
 /* 获取电池状态 */
@@ -219,11 +251,65 @@ msh> tcp_stop
 # 查询电池电压和电量
 msh> bat
 Battery: 3.850V  71%
+
+# 网络 / 服务状态
+msh> net_stat                  # WiFi / PC discovery / TCP / ROCK 链路一览
+msh> pc_disc_stat              # PC discovery 状态与最近一次广播
+msh> auto_status               # autostart 7 步串联结果
+msh> tcp_client_start / tcp_client_stop   # PC 9109 控制（等价 tcp_start/stop）
+msh> tcp_right_stat            # 本端 TCP 收发计数与 generation
+
+# PC 端点 / 配置
+msh> set_server_ip <ip> [port] # 手动指定 PC 端点（覆盖 discovery）
+msh> get_server_ip             # 查询当前 PC 端点 + generation
+msh> set_stt_ip <ip>           # 设置 STT 云端 IP
+msh> get_stt_ip                # 查询当前 STT IP
+
+# WiFi 凭据 / profile
+msh> profile save <SSID> <pass>
+msh> profile list
+msh> profile use <idx>
+
+# 语音助手
+msh> va_init                   # 初始化 INMP441 + ai_cloud_service
+msh> va_start / va_stop        # 启停语音助手
+msh> va_trigger                # 手动触发一次识别
+msh> va_status                 # 状态 / 最近一次结果
+msh> va_reload_stt             # 重载 STT 配置
 ```
 
 ### TCP数据格式
 
 传感器数据以JSON格式通过WiFi TCP `9109`发送到PC端，包含11路IMU数据和电池电压信息，发送频率10Hz。TCP连接使用HELLO与PING/PONG维护会话状态。
+
+### ROCK 上行链路（与PC TCP并行）
+
+右手端独立维护一条 WiFi TCP 长连接到 ROCK 边缘设备 `192.168.221.239:9102`，由 `imu_wifi_sender` 线程驱动，发送周期 90 ms。帧格式：
+
+```
+[DATA]<timestamp_ms>,right,<frame_seq>,<69 raw IMU integers>\n
+```
+
+- 72 个 CSV 字段（不计 `[DATA]` 前缀）；ch0~ch9 各 6 轴、ch10 共 9 轴。
+- 原始未滤波整数；无效通道零填充。
+- 仅 `OP_STATE_RUNNING` 输出；`OP_STATE_AUTO_STANDBY` / `OP_STATE_MANUAL_SLEEP` 保持 TCP 会话但静默。
+- 接收 ROCK 控制词（解析顺序：`MODE:` → `CMD:` → 其他）：
+  - `CMD:RESET_SEQ` 清零 frame_seq
+  - `CMD:START` / `CMD:STOP` 启停流
+  - `MODE:MANUAL` / `MODE:AUTO` 切换操作模式
+  - `SAY:<text>` 仅记录、不本地播音，通知 operation-mode 状态机进入 WAITING_STOP 冷却
+- TCP 连接失败后约 3 s 重试；ROCK `9101/9102` 链路与 PC discovery 9108/9109 完全独立。
+
+### 操作模式状态机
+
+`operation_mode` 是本地 operation state 的唯一 owner，配合 200 ms × 5 连击 + 至少 6/10 手指通道通过 + 手背 + 低运动作为 AUTO 触发门槛：
+
+- `OP_STATE_AUTO_STANDBY` — 默认上电态，WiFi 已连但不发流
+- `OP_STATE_RUNNING` — 发流（PC 9109 + ROCK 9102）
+- `OP_STATE_MANUAL_SLEEP` — 手动模式默认休眠，仅 `CMD:START` 后发流
+- `OP_STATE_WAITING_STOP` — ROCK 显式开始采集后检测到完成姿态，发送 `WAITING_STOP:right\n` 等待 ROCK `SAY:` 冷却
+
+模式不跨重启持久化；ROCK 拒绝触发时清 hit counter 并重置 WiFi frame_seq。
 
 ---
 

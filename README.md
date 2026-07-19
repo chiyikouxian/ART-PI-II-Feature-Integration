@@ -20,15 +20,31 @@
 ┌──────────────────┐     WiFi TCP (JSON)     ┌──────────────────────────────┐
 │  左手手套 (LEFT)  │ ──── port 9109 ────────→│                              │
 │  ART-Pi2 + IMU×11│                         │   Flask Web Server           │
-│  + OLED + VTX316 │                         │   (Python + Three.js)        │
-└──────────────────┘                         │                              │
-                                             │  ┌─ 实时翻译 (3D骨骼模型)    │
-┌──────────────────┐     WiFi TCP (JSON)     │  ├─ 设备数据监控             │
-│  右手手套 (RIGHT) │ ──── port 9109 ────────→│  ├─ 通道映射配置             │
-│  ART-Pi2 + IMU×11│                         │  ├─ AI引擎管理               │
-│  + 麦克风 + 语音  │                         │  └─ 界面管理                 │
+│  + OLED + VTX316 │ ──── port 9101 ────────→│   (Python + Three.js)        │
+│  + 9-DOF ICM-20948│                        │                              │
+└──────────────────┘                         │  ┌─ 实时翻译 (3D骨骼模型)    │
+                                             │  ├─ 设备数据监控             │
+┌──────────────────┐     WiFi TCP (JSON)     │  ├─ 通道映射配置             │
+│  右手手套 (RIGHT) │ ──── port 9109 ────────→│  ├─ AI引擎管理               │
+│  ART-Pi2 + IMU×11│                         │  └─ 界面管理                 │
+│  + 麦克风 + 语音  │ ──── port 9102 ────────→│                              │
+│  + 9-DOF ICM-20948│                        │                              │
 └──────────────────┘                         └──────────────────────────────┘
+                                                  ▲
+                                                  │ UDP 9108 ARTPI_PC,1,9109\n
+                                            (PC broadcaster)
+
+ROCK 边缘设备 (192.168.221.239)
+   - 左手 9101 / 右手 9102: 接收 [DATA]<ts>,hand,<seq>,69 raw ints> 原始CSV
+   - 下发 CMD:START / CMD:STOP / CMD:RESET_SEQ / MODE:MANUAL / MODE:AUTO / SAY:<text>
+   - 复用同一 TCP session 传递 MODEL:* 与 WAITING_STOP:<hand>\n sideband
+   - 与 PC discovery 9108/9109 完全独立
 ```
+
+> 三条主干通信路径：
+> 1. **PC TCP 9109**（JSON 双向，左手端 translated_text 也通过此通道上行）
+> 2. **PC UDP 9108**（PC 广播 ARTPI_PC,1,9109 给两块 ART-Pi2 做地址自动发现）
+> 3. **ROCK WiFi TCP**（左手 9101 / 右手 9102，原始 IMU CSV + 控制命令）
 
 PC端每秒向 `255.255.255.255:9108/UDP` 和当前热点的 `/24` 定向广播地址（例如 `192.168.137.255:9108`）同时广播：
 
@@ -81,12 +97,15 @@ WiFi                      → 板载CYW43438模块
 
 ```
 main()
-  ├─ Thread: iic_drv   [优先级20, 栈2KB]  → I2C/OLED初始化 (一次性)
-  ├─ Thread: vtx316     [优先级20, 栈2KB]  → VTX316语音合成初始化 (一次性, 仅左手端)
-  ├─ Thread: mpu6050    [优先级16, 栈4KB]  → 10Hz 11路IMU数据采集
-  ├─ Thread: bat_adc    [优先级22, 栈1KB]  → 1Hz 电池电压ADC采样
-  ├─ Thread: pc_disc    [优先级24, 栈2KB]  → UDP 9108监听PC地址广播
-  ├─ Thread: tcp_cli    [优先级22, 栈4KB]  → TCP 9109 JSON数据上传与自动重连
+  ├─ Thread: autostart       [优先级25, 栈4KB] → 上电一次性串联 WiFi→discovery→TCP→ROCK→语音助手 (仅右手)
+  ├─ Thread: iic_drv         [优先级20, 栈2KB] → I2C/OLED初始化 (一次性)
+  ├─ Thread: vtx316          [优先级20, 栈2KB] → VTX316语音合成初始化 (一次性, 仅左手端)
+  ├─ Thread: mpu6050         [优先级16, 栈4KB] → 10Hz 11路IMU数据采集
+  ├─ Thread: bat_adc         [优先级22, 栈1KB] → 1Hz 电池电压ADC采样
+  ├─ Thread: pc_disc         [优先级24, 栈2KB] → UDP 9108监听PC地址广播
+  ├─ Thread: tcp_cli         [优先级22, 栈4KB] → TCP 9109 JSON数据上传与自动重连
+  ├─ Thread: imu_wifi_sender [优先级21, 栈4KB] → 每90 ms 上行原始CSV到ROCK 9101/9102
+  ├─ Thread: button          [优先级19, 栈1KB] → PE0 物理按键切换 AUTO/MANUAL (仅左手端)
   └─ Main Loop: LED心跳 (500ms)
 ```
 
@@ -135,14 +154,36 @@ rt_err_t vtx316_speak_wait(const char *text); // 阻塞等待
 ### MSH命令
 
 ```bash
-# 连接WiFi
+# WiFi / 网络
 msh> wifi join <SSID> <password>
 
-# 启动/停止TCP数据传输
+# PC 9109 控制（正常上电流程会自动启动并使用发现的PC端点）
 msh> tcp_start [ip] [port]
 msh> tcp_stop
+msh> tcp_client_start / tcp_client_stop   # 与 tcp_start/tcp_stop 等价
+msh> tcp_left_stat / tcp_right_stat       # 本端 TCP 收发计数 + generation
 
-# 查询电池
+# PC 端点 / STT 覆盖
+msh> set_server_ip <ip> [port]
+msh> get_server_ip
+msh> set_stt_ip <ip>
+msh> get_stt_ip
+
+# 状态查询
+msh> bat                          # 电池电压 / 电量
+msh> pc_disc_stat                 # PC discovery 状态与最近一次广播
+msh> auto_status                  # autostart 7 步串联结果
+msh> net_stat                     # WiFi / PC discovery / TCP / ROCK 链路一览 (仅右手端)
+
+# WiFi 凭据 profile（右手端）
+msh> profile save <SSID> <pass>
+msh> profile list
+msh> profile use <idx>
+
+# 语音助手（仅右手端）
+msh> va_init / va_start / va_stop / va_trigger / va_status / va_reload_stt
+
+# 输出示例
 msh> bat
 Battery: 3.850V  71%
 ```
@@ -248,10 +289,41 @@ art_pi2_wifi_project/
 │   └── requirements.txt           #   Python依赖
 │
 ├── openspec/                      # OpenSpec规范、变更设计与验证任务
-├── a8c4b-main/                    # A8C4B模块参考工程
-├── Unicode_GB2312_GBK_convert_table-master/  # 字符编码转换表
+│   ├── AGENTS.md                  #   项目级 agent 工作指令（必读）
+│   ├── project.md                 #   项目上下文（目的/技术栈/架构/约束）
+│   ├── specs/                     #   现行已构建能力 (built & deployed truth)
+│   │   ├── left-hand-bidirectional-translation/   # BLE + PC TCP 契约
+│   │   ├── pc-endpoint-auto-discovery/            # UDP 9108 + generation
+│   │   └── rock-wifi-csv-uplink/                  # ROCK 9101/9102 原始CSV
+│   └── changes/                   #   提案 / 活动变更 / 已归档变更
+├── a8c4b-main/                    # HZK16 16×16 中文字库样例（历史参考，与本项目无直接耦合）
+├── Unicode_GB2312_GBK_convert_table-master/  # 字符编码转换表（GB2312/GBK↔Unicode）
 └── README.md                      # 本文件
 ```
+
+---
+
+## OpenSpec 规范工作流
+
+本项目采用 OpenSpec 管理协议与行为的当前事实（current truth）。
+
+- `openspec/AGENTS.md` 是项目级 agent 必读入口，定义 proposal → implementation → archive 三阶段流程与严格校验规则。
+- `openspec/project.md` 描述项目目的、技术栈、架构、测试策略与外部依赖（agent 开工前应先读）。
+- `openspec/specs/<capability>/spec.md` 是已构建、已部署的现行契约（built & deployed truth）。本项目当前 3 个：
+  - `left-hand-bidirectional-translation` — BLE 5.0 契约（设备名 `ART-Pi2-IMU-L`、Service `A74D0001-…`、Notify 90 ms、72 字段 CSV、默认启动路径不启用 BLE）
+  - `pc-endpoint-auto-discovery` — PC UDP 9108 广播 + 双手 9109 自动重连
+  - `rock-wifi-csv-uplink` — ROCK 9101/9102 原始CSV上行 + CMD/MODE/SAY 下行
+- `openspec/changes/<change>/{proposal,design,tasks,specs}.md` 是尚在开发中的提案。当前活动变更：`add-dual-hand-operation-modes`（AUTO/MANUAL 状态机，26/31 tasks 完成）。
+- `openspec/changes/archive/YYYY-MM-DD-…` 是已完成并归档的历史变更。
+
+约束：
+
+- 修改协议、端口、UUID、传感器映射、操作模式状态机前，先在 `openspec/specs/<对应 capability>/spec.md` 阅读现行契约，再决定是新增 `change` 还是修订现有 capability。
+- 提案审批前不得动手改实现。归档后才能视为 deployed truth。
+- 严格校验命令（在仓库根目录执行）：
+  ```bash
+  openspec validate --all --strict --no-interactive
+  ```
 
 ---
 
@@ -277,8 +349,8 @@ art_pi2_wifi_project/
 如使用SD卡加载WiFi固件，需将以下文件放到SD卡根目录：
 
 ```
-packages/wifi-host-driver-latest/.../resources/clm/COMPONENT_43438/43438A1.clm_blob
-packages/wifi-host-driver-latest/.../resources/firmware/COMPONENT_43438/43438A1.bin
+packages/wifi-host-driver-latest/wifi-host-driver/WiFi_Host_Driver/resources/clm/COMPONENT_43438/43438A1.clm_blob
+packages/wifi-host-driver-latest/wifi-host-driver/WiFi_Host_Driver/resources/firmware/COMPONENT_43438/43438A1.bin
 ```
 
 ### Web后端

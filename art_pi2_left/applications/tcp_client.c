@@ -7,7 +7,7 @@
  *        通道映射 (左手 = 本机硬件):
  *        ch0~ch7:  I2C1 TCA9548A CH0~CH7 → MPU6050 (6-DOF)
  *        ch8~ch9:  I2C2 TCA9548A CH0~CH1 → MPU6050 (6-DOF)
- *        ch10:     I2C2 TCA9548A CH2     → MPU9250 (9-DOF)
+ *        ch10:     I2C2 TCA9548A CH2     → ICM-20948 (9-DOF, AK09916 磁力计)
  *
  *        若传感器未检测到 (valid=false), 该通道数据发送 0
  */

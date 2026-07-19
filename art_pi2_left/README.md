@@ -12,6 +12,9 @@
 - **锂电池电压监测**：ADC采集锂电池分压电压，8次滑动平均滤波，14级精细电池图标显示
 - **OLED实时显示**：128×64 SH1106 OLED屏幕，顶部状态栏显示电池电压/电量图标，下方3行显示串口接收文本
 - **串口文本接收显示**：UART1接收外部串口文本，按行解析后滚动显示到OLED
+- **ROCK原始IMU上行**：通过 `imu_wifi_sender` 线程每90 ms向ROCK边缘设备 `192.168.221.239:9101` 发送 `[DATA]<ts>,left,<seq>,69 raw ints>\n`，运行于 `OP_STATE_RUNNING`，受 operation-mode 状态机门控
+- **PE0 物理按键切换ROCK推理模式**：`button_thread` 监听 PE0 边沿，短按在 `AUTO` / `MANUAL` 之间切换，长按重置 hit counter；模式不跨重启持久化
+- **WiFi 凭据 fallback**：固件硬编码 `SSID="rock"` / `PASSWORD="12345678"`（见 `applications/main.c`），按 `profile` 命令可覆盖
 
 ---
 
@@ -43,6 +46,17 @@
 │  Thread 6: tcp_cli   [优先级22, 栈4KB]                       │
 │    → WiFi TCP 9109发送JSON数据，端点变化后自动重连            │
 │    → 支持双向通信: 接收PC下发命令                             │
+│                                                             │
+│  Thread 7: button    [优先级19, 栈1KB]                       │
+│    → PE0 物理按键 (RT-Thread pin 设备)                        │
+│    → 短按切换 AUTO / MANUAL; 长按清 hit counter              │
+│    → 通知 operation_mode 状态机                               │
+│                                                             │
+│  Thread 8: imu_wifi_sender [优先级21, 栈4KB]                │
+│    → 每90 ms向ROCK 192.168.221.239:9101发送原始CSV            │
+│    → 仅在 OP_STATE_RUNNING 时输出 (受 operation_mode gate)   │
+│    → 接收 ROCK 下发的 CMD:* / MODE:* / SAY: 并更新状态机     │
+│    → 左手收到 SAY: 时本地 VTX316 播报并写入 PC TCP JSON 缓冲 │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -64,6 +78,7 @@ UART4 (PD0-TX, PD1-RX)   → 控制台 (MSH Shell)
 ADC1 CH12 (PC2) ← 锂电池分压 (2× 1KΩ电阻, 分压比1:2)
 
 GPIO PO5 → LED心跳指示灯
+GPIO PE0 → 物理按键 (RT-Thread pin 设备, 切换 AUTO/MANUAL)
 
 WiFi: 板载CYW43438模块 → TCP数据传输
 ```
@@ -101,11 +116,17 @@ ADC 12位分辨率, 参考电压 3.3V
 ```
 art_pi2_left/
 ├── applications/                   # 应用层
-│   ├── main.c                      # 主入口, 线程创建, LED心跳
+│   ├── main.c                      # 主入口, 线程创建, LED心跳, 硬编码 WiFi 凭据
 │   ├── adc_battery.c/h             # 锂电池ADC采集 (HAL直驱, 滑动滤波)
 │   ├── tcp_client.c/h              # PC TCP 9109双向通信 (JSON格式)
 │   ├── pc_discovery.c/h            # UDP 9108 PC地址自动发现
-│   └── server_config.c/h            # 线程安全端点与generation管理
+│   ├── server_config.c/h            # 线程安全端点与generation管理
+│   ├── imu_wifi_sender.c/h         # ROCK 9101 原始CSV上行 + CMD/MODE/SAY解析
+│   ├── operation_mode.c/h          # 状态机 (AUTO/MANUAL + RUNNING/STANDBY/SLEEP)
+│   ├── button_thread.c/h           # PE0 按键事件, 通知 operation_mode
+│   ├── imu_notify_thread.c/h       # 历史BLE Notify (默认不启用)
+│   ├── imu_ble_service.c/h         # 历史BLE GATT服务 (默认不启用)
+│   └── vtx316_thread.c/h           # VTX316 串口文本播报
 ├── IIC/                            # I2C通信模块
 │   ├── iic_thread.c/h              # I2C/OLED初始化线程
 │   ├── tca9548a.c/h                # TCA9548A 8通道I2C多路复用器驱动
@@ -219,11 +240,52 @@ msh> tcp_stop
 # 查询电池电压和电量
 msh> bat
 Battery: 3.850V  71%
+
+# 网络 / 服务状态
+msh> pc_disc_stat              # PC discovery 状态与最近一次广播
+msh> auto_status               # autostart 各阶段结果
+msh> tcp_client_start / tcp_client_stop   # PC 9109 控制（等价 tcp_start/stop）
+msh> tcp_left_stat             # 本端 TCP 收发计数与 generation
+
+# PC 端点 / 配置
+msh> set_server_ip <ip> [port] # 手动指定 PC 端点（覆盖 discovery）
+msh> get_server_ip             # 查询当前 PC 端点 + generation
+msh> set_stt_ip <ip>           # 设置 STT 云端 IP
+msh> get_stt_ip                # 查询当前 STT IP
 ```
 
 ### TCP数据格式
 
 传感器数据以JSON格式通过WiFi TCP `9109`发送到PC端，包含11路IMU数据和电池电压信息，发送频率10Hz。TCP连接建立后会发送HELLO会话横幅。
+
+### ROCK 上行链路（与PC TCP并行）
+
+左手端独立维护一条 WiFi TCP 长连接到 ROCK 边缘设备 `192.168.221.239:9101`，由 `imu_wifi_sender` 线程驱动，发送周期 90 ms。帧格式：
+
+```
+[DATA]<timestamp_ms>,left,<frame_seq>,<69 raw IMU integers>\n
+```
+
+- 72 个 CSV 字段（不计 `[DATA]` 前缀）；ch0~ch9 各 6 轴、ch10 共 9 轴。
+- 原始未滤波整数；无效通道零填充。
+- 仅 `OP_STATE_RUNNING` 输出；`OP_STATE_AUTO_STANDBY` / `OP_STATE_MANUAL_SLEEP` 保持 TCP 会话但静默。
+- 接收 ROCK 控制词（解析顺序：`MODE:` → `CMD:` → 其他）：
+  - `CMD:RESET_SEQ` 清零 frame_seq
+  - `CMD:START` / `CMD:STOP` 启停流
+  - `MODE:MANUAL` / `MODE:AUTO` 切换操作模式
+  - `SAY:<text>` 本地 VTX316 播报 + 写入 PC TCP JSON `translated_text` 附加字段，并通知状态机进入 WAITING_STOP 冷却
+- TCP 连接失败后约 3 s 重试；ROCK `9101/9102` 链路与 PC discovery 9108/9109 完全独立。
+
+### 操作模式状态机
+
+`operation_mode` 是本地 operation state 的唯一 owner，配合 200 ms × 5 连击 + 至少 6/10 手指通道通过 + 手背 + 低运动作为 AUTO 触发门槛：
+
+- `OP_STATE_AUTO_STANDBY` — 默认上电态，WiFi 已连但不发流
+- `OP_STATE_RUNNING` — 发流（PC 9109 + ROCK 9101）
+- `OP_STATE_MANUAL_SLEEP` — 手动模式默认休眠，仅 `CMD:START` 后发流
+- `OP_STATE_WAITING_STOP` — ROCK 显式开始采集后检测到完成姿态，发送 `WAITING_STOP:left\n` 等待 ROCK `SAY:` 冷却
+
+`button_thread` 监听 PE0：短按切换 AUTO / MANUAL，长按清 hit counter。模式不跨重启持久化；ROCK 拒绝触发时清 hit counter 并重置 WiFi frame_seq。
 
 ---
 

@@ -3,6 +3,16 @@
 ## Purpose
 Define the current WiFi/TCP uplink and control contract used by the ART-Pi2 left-hand and right-hand firmware when connected to the ROCK edge device.
 
+> **Dependency notice (state mismatch, not a syntax error):** This current spec references
+> `OP_STATE_RUNNING`, `OP_STATE_AUTO_STANDBY`, `OP_STATE_MANUAL_SLEEP`, and the
+> `CMD:*` / `MODE:*` control grammar. The capability that fully defines those operation
+> states (`add-dual-hand-operation-modes`) is **still an active change** with
+> 5 of 31 tasks remaining (manual-mode full hardware acceptance, broad negative-sample
+> collection, ROCK second-stage reviewer, end-to-end dual-hand acceptance, and the
+> final strict-validation re-run). Treat the SHALL semantics below as the intended
+> deployed contract, not as a verified current behaviour, until that change is archived.
+> See `openspec/changes/add-dual-hand-operation-modes/tasks.md` for the live task list.
+
 ## Requirements
 ### Requirement: Per-Hand WiFi CSV Uplink To ROCK
 Each ART-Pi2 endpoint SHALL expose a dedicated WiFi/TCP uplink to ROCK that sends raw IMU CSV frames at a 90 ms cadence while the local operation mode is in running state.

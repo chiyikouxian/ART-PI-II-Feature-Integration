@@ -86,7 +86,9 @@ if __name__ == '__main__':
     init_database()
 
     # The device TCP listener must have a single owner. Werkzeug's debug
-    # reloader creates a second process, which otherwise races for port 8266.
+    # reloader creates a second process, which otherwise races for port 9109
+    # (the device-facing TCP listener). `use_reloader=False` below also
+    # guarantees a single owner process.
     from app.services.tcp_server import start_tcp_server
     start_tcp_server()
 
