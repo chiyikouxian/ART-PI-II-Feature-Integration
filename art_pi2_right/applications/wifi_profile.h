@@ -32,8 +32,7 @@ typedef struct {
     char name[PROFILE_NAME_LEN];            /* 配置名称 */
     char ssid[WIFI_SSID_LEN];               /* WiFi SSID */
     char password[WIFI_PASSWORD_LEN];       /* WiFi密码 */
-    char server_ip[IP_ADDR_LEN];            /* TCP服务器IP */
-    char stt_ip[IP_ADDR_LEN];               /* STT服务器IP */
+    char server_ip[IP_ADDR_LEN];            /* TCP服务器IP（PC辅助端点，与 ROCK/STT 无关） */
     rt_bool_t valid;                        /* 是否有效 */
 } wifi_profile_t;
 
@@ -42,13 +41,11 @@ typedef struct {
  * @param  name       配置名称
  * @param  ssid       WiFi SSID
  * @param  password   WiFi密码
- * @param  server_ip  TCP服务器IP
- * @param  stt_ip     STT服务器IP（可选，传NULL则使用server_ip）
+ * @param  server_ip  TCP服务器IP（PC辅助端点；ROCK/STT 端点固定，不由 profile 管理）
  * @return 0成功, -1失败
  */
 int wifi_profile_add(const char *name, const char *ssid,
-                     const char *password, const char *server_ip,
-                     const char *stt_ip);
+                     const char *password, const char *server_ip);
 
 /**
  * @brief  删除WiFi配置文件
@@ -58,7 +55,8 @@ int wifi_profile_add(const char *name, const char *ssid,
 int wifi_profile_delete(const char *name);
 
 /**
- * @brief  切换到指定配置（自动连接WiFi并设置服务器IP）
+ * @brief  切换到指定配置：打印手动WiFi连接提示（不调用 rt_wlan_connect，
+ *         WiFi连接所有权归 net_manager），并更新PC TCP端点后重启TCP客户端
  * @param  name  配置名称
  * @return 0成功, -1失败
  */

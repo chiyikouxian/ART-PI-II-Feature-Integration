@@ -12,9 +12,9 @@
 - **锂电池电压监测**：ADC采集锂电池分压电压，8次滑动平均滤波，14级精细电池图标显示
 - **OLED实时显示**：128×64 SH1106 OLED屏幕，顶部状态栏显示电池电压/电量图标，下方3行显示串口接收文本
 - **串口文本接收显示**：UART1接收外部串口文本，按行解析后滚动显示到OLED
-- **ROCK原始IMU上行**：通过 `imu_wifi_sender` 线程每90 ms向ROCK边缘设备 `192.168.221.239:9101` 发送 `[DATA]<ts>,left,<seq>,69 raw ints>\n`，运行于 `OP_STATE_RUNNING`，受 operation-mode 状态机门控
+- **ROCK原始IMU上行**：通过 `imu_wifi_sender` 线程每90 ms向ROCK边缘设备 `192.168.1.1:9101` 发送 `[DATA]<ts>,left,<seq>,69 raw ints>\n`，运行于 `OP_STATE_RUNNING`，受 operation-mode 状态机门控
 - **PE0 物理按键切换ROCK推理模式**：`button_thread` 监听 PE0 边沿，短按在 `AUTO` / `MANUAL` 之间切换，长按重置 hit counter；模式不跨重启持久化
-- **WiFi 凭据 fallback**：固件硬编码 `SSID="rock"` / `PASSWORD="12345678"`（见 `applications/main.c`），按 `profile` 命令可覆盖
+- **WiFi 凭据**：固件内配置的已验证 ROCK 热点凭据，见 `applications/main.c`
 
 ---
 
@@ -53,7 +53,7 @@
 │    → 通知 operation_mode 状态机                               │
 │                                                             │
 │  Thread 8: imu_wifi_sender [优先级21, 栈4KB]                │
-│    → 每90 ms向ROCK 192.168.221.239:9101发送原始CSV            │
+│    → 每90 ms向ROCK 192.168.1.1:9101发送原始CSV            │
 │    → 仅在 OP_STATE_RUNNING 时输出 (受 operation_mode gate)   │
 │    → 接收 ROCK 下发的 CMD:* / MODE:* / SAY: 并更新状态机     │
 │    → 左手收到 SAY: 时本地 VTX316 播报并写入 PC TCP JSON 缓冲 │
@@ -250,8 +250,6 @@ msh> tcp_left_stat             # 本端 TCP 收发计数与 generation
 # PC 端点 / 配置
 msh> set_server_ip <ip> [port] # 手动指定 PC 端点（覆盖 discovery）
 msh> get_server_ip             # 查询当前 PC 端点 + generation
-msh> set_stt_ip <ip>           # 设置 STT 云端 IP
-msh> get_stt_ip                # 查询当前 STT IP
 ```
 
 ### TCP数据格式
@@ -260,7 +258,7 @@ msh> get_stt_ip                # 查询当前 STT IP
 
 ### ROCK 上行链路（与PC TCP并行）
 
-左手端独立维护一条 WiFi TCP 长连接到 ROCK 边缘设备 `192.168.221.239:9101`，由 `imu_wifi_sender` 线程驱动，发送周期 90 ms。帧格式：
+左手端独立维护一条 WiFi TCP 长连接到 ROCK 边缘设备 `192.168.1.1:9101`，由 `imu_wifi_sender` 线程驱动，发送周期 90 ms。帧格式：
 
 ```
 [DATA]<timestamp_ms>,left,<frame_seq>,<69 raw IMU integers>\n

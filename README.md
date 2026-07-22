@@ -34,8 +34,9 @@
                                                   │ UDP 9108 ARTPI_PC,1,9109\n
                                             (PC broadcaster)
 
-ROCK 边缘设备 (192.168.221.239)
-   - 左手 9101 / 右手 9102: 接收 [DATA]<ts>,hand,<seq>,69 raw ints> 原始CSV
+ROCK 边缘设备 (Plan B 自建热点, 热点接口 wlan1, 192.168.1.1/24, 已验证 SSID rockchip_4eabbe)
+   - 左手 192.168.1.1:9101 / 右手 192.168.1.1:9102: 接收 [DATA]<ts>,hand,<seq>,69 raw ints> 原始CSV
+   - 右手 STT: `http://192.168.1.1:8080/stt`（复用 ROCK_SERVER_IP，与 ROCK IMU 服务共用主机地址）
    - 下发 CMD:START / CMD:STOP / CMD:RESET_SEQ / MODE:MANUAL / MODE:AUTO / SAY:<text>
    - 复用同一 TCP session 传递 MODEL:* 与 WAITING_STOP:<hand>\n sideband
    - 与 PC discovery 9108/9109 完全独立
@@ -45,6 +46,16 @@ ROCK 边缘设备 (192.168.221.239)
 > 1. **PC TCP 9109**（JSON 双向，左手端 translated_text 也通过此通道上行）
 > 2. **PC UDP 9108**（PC 广播 ARTPI_PC,1,9109 给两块 ART-Pi2 做地址自动发现）
 > 3. **ROCK WiFi TCP**（左手 9101 / 右手 9102，原始 IMU CSV + 控制命令）
+>
+> **Plan B 内部网络（固定，已真机验证）：** ROCK 用自建热点作为双手内部网络——
+> 热点接口 `wlan1`、热点侧固定 IP `192.168.1.1/24`，热点 SSID 为已验证的
+> `rockchip_4eabbe`（固件内配置的已验证热点凭据，见各端 `main.c` /
+> `net_manager.c`）。两手上电后自动连接该热点，
+> 等 DHCP/WiFi Ready 后主动连接 `192.168.1.1` 的 9101/9102，右手 STT 走
+> `http://192.168.1.1:8080/stt`（与 ROCK IMU 服务共用同一 IP）。ROCK 的 `wlan0` 等
+> 外部接口用于连接答辩室 WiFi / 手机热点，其地址变化不影响上述三条内部链路；ROCK 服务
+> 地址为固定值，不随 DHCP 默认网关动态改变（网关仅用于诊断，正常应为 `192.168.1.1`）。
+> ROCK endpoint 与 PC 9108/9109 discovery 完全独立，互不影响。
 
 PC端每秒向 `255.255.255.255:9108/UDP` 和当前热点的 `/24` 定向广播地址（例如 `192.168.137.255:9108`）同时广播：
 
@@ -163,11 +174,10 @@ msh> tcp_stop
 msh> tcp_client_start / tcp_client_stop   # 与 tcp_start/tcp_stop 等价
 msh> tcp_left_stat / tcp_right_stat       # 本端 TCP 收发计数 + generation
 
-# PC 端点 / STT 覆盖
+# PC 端点（覆盖 discovery）；STT 端点固定为 ROCK_SERVER_IP:8080，右手无 set_stt_ip
 msh> set_server_ip <ip> [port]
 msh> get_server_ip
-msh> set_stt_ip <ip>
-msh> get_stt_ip
+msh> get_stt_ip                   # 只读；右手恒返回 ROCK_SERVER_IP:8080
 
 # 状态查询
 msh> bat                          # 电池电压 / 电量
@@ -175,10 +185,12 @@ msh> pc_disc_stat                 # PC discovery 状态与最近一次广播
 msh> auto_status                  # autostart 7 步串联结果
 msh> net_stat                     # WiFi / PC discovery / TCP / ROCK 链路一览 (仅右手端)
 
-# WiFi 凭据 profile（右手端）
-msh> profile save <SSID> <pass>
+# WiFi 凭据 / PC 端点 profile（右手端, 仅内存, 重启丢失, 不管理 ROCK/STT）
+msh> profile add <name> <ssid> <password> <server_ip>
+msh> profile del <name>
+msh> profile use <name>
 msh> profile list
-msh> profile use <idx>
+msh> profile current
 
 # 语音助手（仅右手端）
 msh> va_init / va_start / va_stop / va_trigger / va_status / va_reload_stt

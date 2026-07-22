@@ -8,10 +8,6 @@
 
 #include <rtthread.h>
 
-/* 服务器配置 - 修改为你电脑的IP地址 */
-#define TCP_SERVER_IP       "192.168.137.217"
-#define TCP_SERVER_PORT     9109
-
 /* 线程配置 */
 #define TCP_THREAD_PRIORITY     22
 #define TCP_THREAD_STACK_SIZE   4096

@@ -27,8 +27,8 @@
   - 自定义 TCP Server（端口 9109，JSON 双向）
   - 自定义 UDP Discovery Broadcaster（端口 9108，`ARTPI_PC,1,9109\n`）
 - **AI / 数据**
-  - ROCK 边缘设备：`192.168.221.239`，左手 CSV→9101、右手 CSV→9102
-  - 辅助云端：STT `192.168.221.217:8080`、TCP monitor `:8266`
+  - ROCK 边缘设备（Plan B 自建热点，热点接口 wlan1 / 192.168.1.1/24，已通过真机验证的热点 SSID `rockchip_4eabbe`）：左手 CSV→`192.168.1.1:9101`、右手 CSV→`192.168.1.1:9102`
+  - 右手 STT：`http://192.168.1.1:8080/stt`（复用 ROCK_SERVER_IP，与 ROCK IMU 服务同一主机）；ROCK 外部 WiFi 地址变化不影响内部链路
   - BLSTM 数据集：`rock/data/processed/final_blstm_dataset/`
 - **规范**
   - OpenSpec（`openspec/`）：proposal → implementation → archive，AGENTS 流程

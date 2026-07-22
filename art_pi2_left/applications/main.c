@@ -63,9 +63,10 @@ int left_ble_app_init(void);
 #define WLAN_CONNECT_TIMEOUT_MS   15000
 #define TCP_START_DELAY_MS        2000
 
-/* WiFi接入点配置 (通过MSH命令 wifi join 使用) */
-#define WIFI_SSID "rock"
-#define WIFI_PASSWORD "12345678"
+/* WiFi接入点配置 (Plan B: ROCK 自建热点)
+ * 已通过真机验证的热点凭据，SSID/密码与 ROCK 热点实际配置一致。 */
+#define WIFI_SSID "rockchip_4eabbe"
+#define WIFI_PASSWORD "rockchip"
 
 /* IIC初始化线程: 负责I2C总线初始化、TCA9548A探测 */
 static struct rt_thread iic_thread;

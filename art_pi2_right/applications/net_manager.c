@@ -38,9 +38,12 @@
 
 /* WiFi connection source for the right hand.
  * NET_MGR_SSID / NET_MGR_PASSWORD are the authoritative credentials
- * used by net_manager when calling rt_wlan_connect(). */
-#define NET_MGR_SSID        "rock"
-#define NET_MGR_PASSWORD    "12345678"
+ * used by net_manager when calling rt_wlan_connect().
+ * Plan B: ROCK self-hosted AP (hotspot iface wlan1, hotspot IP
+ * 192.168.1.1/24). These credentials are field-verified against the
+ * actual ROCK hotspot. */
+#define NET_MGR_SSID        "rockchip_4eabbe"
+#define NET_MGR_PASSWORD    "rockchip"
 
 #define NET_MGR_THREAD_STACK_SIZE   2048
 #define NET_MGR_THREAD_PRIORITY     10   /* low: should never preempt TCP */

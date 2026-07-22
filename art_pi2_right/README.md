@@ -8,7 +8,7 @@
 
 - **11路IMU传感器数据采集**：通过双TCA9548A I2C多路复用器，采集8路MPU6050（6轴）+ 2路MPU6050（6轴）+ 1路ICM-20948（9轴，含AK09916磁力计）
 - **WiFi TCP双向通信**：通过板载CYW43438 WiFi模块，以JSON格式将传感器数据实时发送到PC端，同时支持接收PC下发命令
-- **ROCK原始IMU上行**：通过 `imu_wifi_sender` 线程每90 ms向ROCK边缘设备 `192.168.221.239:9102` 发送 `[DATA]<ts>,right,<seq>,69 raw ints>\n`，运行于 `OP_STATE_RUNNING`，受 operation-mode 状态机门控
+- **ROCK原始IMU上行**：通过 `imu_wifi_sender` 线程每90 ms向ROCK边缘设备 `192.168.1.1:9102` 发送 `[DATA]<ts>,right,<seq>,69 raw ints>\n`，运行于 `OP_STATE_RUNNING`，受 operation-mode 状态机门控
 - **PC地址自动发现**：监听UDP `9108`广播并自动连接PC TCP `9109`，热点分配新IP后无需重新烧录
 - **语音助手旁路（右手专属）**：INMP441 麦克风（I2S/SAI）+ `voice_assistant` 状态机，监听 ROCK 下发的 `SAY:` 文本但**不本地播音**，仅记录并通知 operation-mode 状态机；本地播音仅限 `MODE:AUTO` + `OP_STATE_AUTO_STANDBY` 期间用于本地提示
 - **锂电池电压监测**：ADC采集锂电池分压电压，8次滑动平均滤波，14级精细电池图标显示
@@ -55,7 +55,7 @@
 │    → 支持双向通信: 接收PC下发命令                             │
 │                                                             │
 │  Thread 7: imu_wifi_sender [优先级21, 栈4KB]                │
-│    → 每90 ms向ROCK 192.168.221.239:9102发送原始CSV            │
+│    → 每90 ms向ROCK 192.168.1.1:9102发送原始CSV            │
 │    → 仅在 OP_STATE_RUNNING 时输出 (受 operation_mode gate)   │
 │    → 接收 ROCK 下发的 CMD:* / MODE:* / SAY: 并更新状态机     │
 │                                                             │
@@ -262,20 +262,21 @@ msh> tcp_right_stat            # 本端 TCP 收发计数与 generation
 # PC 端点 / 配置
 msh> set_server_ip <ip> [port] # 手动指定 PC 端点（覆盖 discovery）
 msh> get_server_ip             # 查询当前 PC 端点 + generation
-msh> set_stt_ip <ip>           # 设置 STT 云端 IP
-msh> get_stt_ip                # 查询当前 STT IP
+msh> get_stt_ip                # 查询 STT 端点（只读，恒为 ROCK_SERVER_IP:8080，不可修改）
 
-# WiFi 凭据 / profile
-msh> profile save <SSID> <pass>
+# WiFi 凭据 / PC 端点 profile（仅内存, 重启丢失, 不管理 ROCK/STT）
+msh> profile add <name> <ssid> <password> <server_ip>
+msh> profile del <name>
+msh> profile use <name>
 msh> profile list
-msh> profile use <idx>
+msh> profile current
 
 # 语音助手
 msh> va_init                   # 初始化 INMP441 + ai_cloud_service
 msh> va_start / va_stop        # 启停语音助手
 msh> va_trigger                # 手动触发一次识别
 msh> va_status                 # 状态 / 最近一次结果
-msh> va_reload_stt             # 重载 STT 配置
+msh> va_reload_stt             # 重新初始化 AI 服务（STT 地址固定为 ROCK_SERVER_IP:8080，不可切换）
 ```
 
 ### TCP数据格式
@@ -284,7 +285,7 @@ msh> va_reload_stt             # 重载 STT 配置
 
 ### ROCK 上行链路（与PC TCP并行）
 
-右手端独立维护一条 WiFi TCP 长连接到 ROCK 边缘设备 `192.168.221.239:9102`，由 `imu_wifi_sender` 线程驱动，发送周期 90 ms。帧格式：
+右手端独立维护一条 WiFi TCP 长连接到 ROCK 边缘设备 `192.168.1.1:9102`，由 `imu_wifi_sender` 线程驱动，发送周期 90 ms。帧格式：
 
 ```
 [DATA]<timestamp_ms>,right,<frame_seq>,<69 raw IMU integers>\n

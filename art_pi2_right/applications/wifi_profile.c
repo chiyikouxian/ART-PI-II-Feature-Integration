@@ -19,8 +19,7 @@ static wifi_profile_t profiles[MAX_PROFILES];
 /* 当前使用的配置索引 (-1表示无) */
 static int current_profile_idx = -1;
 
-/* 外部WiFi连接函数声明 */
-extern int wifi_join(int argc, char **argv);
+/* 外部函数声明 */
 extern int tcp_client_stop(void);
 extern int tcp_client_start(int argc, char **argv);
 
@@ -56,8 +55,7 @@ static int find_free_slot(void)
 }
 
 int wifi_profile_add(const char *name, const char *ssid,
-                     const char *password, const char *server_ip,
-                     const char *stt_ip)
+                     const char *password, const char *server_ip)
 {
     int idx;
 
@@ -98,17 +96,6 @@ int wifi_profile_add(const char *name, const char *ssid,
     rt_strncpy(profiles[idx].server_ip, server_ip, IP_ADDR_LEN - 1);
     profiles[idx].server_ip[IP_ADDR_LEN - 1] = '\0';
 
-    /* STT IP默认与server_ip相同 */
-    if (stt_ip != RT_NULL)
-    {
-        rt_strncpy(profiles[idx].stt_ip, stt_ip, IP_ADDR_LEN - 1);
-    }
-    else
-    {
-        rt_strncpy(profiles[idx].stt_ip, server_ip, IP_ADDR_LEN - 1);
-    }
-    profiles[idx].stt_ip[IP_ADDR_LEN - 1] = '\0';
-
     profiles[idx].valid = RT_TRUE;
 
     LOG_I("Profile '%s' saved (in-memory only)", name);
@@ -139,8 +126,6 @@ int wifi_profile_delete(const char *name)
 int wifi_profile_use(const char *name)
 {
     int idx = find_profile(name);
-    char *argv[3];
-    int ret;
 
     if (idx < 0)
     {
@@ -152,31 +137,17 @@ int wifi_profile_use(const char *name)
 
     rt_kprintf("\n=== Switching to profile: %s ===\n", p->name);
     rt_kprintf("WiFi: %s\n", p->ssid);
-    rt_kprintf("Server IP: %s\n", p->server_ip);
-    rt_kprintf("STT IP: %s\n\n", p->stt_ip);
+    rt_kprintf("Server IP: %s\n\n", p->server_ip);
 
-    /* 1. 连接WiFi */
-    rt_kprintf("[1/4] Connecting to WiFi...\n");
-    argv[0] = "wifi";
-    argv[1] = "join";
-    argv[2] = p->ssid;
-    /* 注意：这里简化处理，实际需要调用正确的WiFi连接函数 */
-    rt_kprintf("Please manually run: wifi join %s %s\n",
-               p->ssid, p->password);
+    /* WiFi连接所有权归 net_manager，本函数不调用 rt_wlan_connect。
+     * 如尚未连接到该网络，需手动执行下面的命令。 */
+    rt_kprintf("[1/2] WiFi connection is owned by net_manager.\n");
+    rt_kprintf("      If not already on this network, run manually:\n");
+    rt_kprintf("      wifi join %s %s\n", p->ssid, p->password);
 
-    /* 等待用户手动连接或自动连接 */
-    rt_thread_mdelay(2000);
-
-    /* 2. 设置TCP服务器IP */
-    rt_kprintf("[2/4] Setting TCP server IP...\n");
+    /* 设置PC TCP端点（PC辅助端点，与 ROCK/STT 无关）并重启TCP客户端 */
+    rt_kprintf("[2/2] Setting PC TCP endpoint and restarting TCP client...\n");
     server_config_set_tcp_ip(p->server_ip);
-
-    /* 3. 设置STT服务器IP */
-    rt_kprintf("[3/4] Setting STT server IP...\n");
-    server_config_set_stt_ip(p->stt_ip);
-
-    /* 4. 重启TCP客户端 */
-    rt_kprintf("[4/4] Restarting TCP client...\n");
     tcp_client_stop();
     rt_thread_mdelay(500);
     tcp_client_start(0, RT_NULL);
@@ -232,25 +203,22 @@ void wifi_profile_current(void)
     rt_kprintf("Name:      %s\n", p->name);
     rt_kprintf("SSID:      %s\n", p->ssid);
     rt_kprintf("Password:  %s\n", p->password);
-    rt_kprintf("Server IP: %s\n", p->server_ip);
-    rt_kprintf("STT IP:    %s\n\n", p->stt_ip);
+    rt_kprintf("Server IP: %s\n\n", p->server_ip);
 }
 
 /* ==================== MSH命令 ==================== */
 
-/* profile add <name> <ssid> <password> <server_ip> [stt_ip] */
+/* profile add <name> <ssid> <password> <server_ip> */
 static int cmd_profile_add(int argc, char **argv)
 {
     if (argc < 5)
     {
-        rt_kprintf("Usage: profile add <name> <ssid> <password> <server_ip> [stt_ip]\n");
+        rt_kprintf("Usage: profile add <name> <ssid> <password> <server_ip>\n");
         rt_kprintf("Example: profile add home MyWiFi pass123 192.168.1.100\n");
         return -1;
     }
 
-    const char *stt_ip = (argc >= 6) ? argv[5] : RT_NULL;
-
-    return wifi_profile_add(argv[2], argv[3], argv[4], argv[5], stt_ip);
+    return wifi_profile_add(argv[2], argv[3], argv[4], argv[5]);
 }
 
 /* profile del <name> */
@@ -300,7 +268,7 @@ static int cmd_profile(int argc, char **argv)
     {
         rt_kprintf("WiFi Profile Manager (in-memory only, lost on reboot)\n");
         rt_kprintf("Usage:\n");
-        rt_kprintf("  profile add <name> <ssid> <pwd> <ip> [stt_ip]\n");
+        rt_kprintf("  profile add <name> <ssid> <pwd> <ip>\n");
         rt_kprintf("  profile del <name>\n");
         rt_kprintf("  profile use <name>\n");
         rt_kprintf("  profile list\n");

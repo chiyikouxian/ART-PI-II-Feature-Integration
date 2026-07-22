@@ -33,9 +33,10 @@
 #define XFYUN_APP_ID            "c050bb08"
 /* STT URL is built at runtime by voice_assistant.c using
  *   server_config_get_stt_ip() + server_config_get_stt_port()
- * Configure it on the board via MSH:
- *   set_stt_ip <PC_WLAN_IP>
- *   va_reload_stt
+ * Both getters are fixed read-only mirrors of ROCK_SERVER_IP /
+ * ROCK_STT_SERVER_PORT (rock_config.h) — there is no runtime path to
+ * override the STT host/port. `va_reload_stt` only re-initialises the
+ * AI service against this same fixed address; it cannot change it.
  */
 
 /* Aliyun Config */

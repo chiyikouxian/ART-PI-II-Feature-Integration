@@ -8,15 +8,15 @@
 工作流程：
   STM32 ---(HTTP POST /stt)---> 本脚本 ---(WebSocket+TLS)---> 讯飞 IAT v2 API
 
-使用方法：
+使用方法（Plan B 固定内部网络）：
+  固件 STT 目标固定为 ROCK_SERVER_IP:8080（见 applications/rock_config.h），
+  不再支持通过 set_stt_ip 切换到本机代理 —— 该命令已移除。
+  若需要用本脚本代替 ROCK 上的 STT 代理，必须让本脚本运行在 ROCK 设备本身
+  （监听 192.168.1.1:8080），而不是在开发者电脑上运行后临时指向它。
   1. pip install websocket-client
-  2. python xfyun_proxy.py
-  3. 在开发板 MSH 中运行：
-       set_stt_ip <本电脑的 WLAN IP>
-       va_reload_stt
-     STT URL 由 voice_assistant.c 在运行时动态拼装为
-       http://<stt_ip>:8080/stt
-     因此无需修改固件源码或重新烧录。
+  2. 在 ROCK 设备上运行 python xfyun_proxy.py，使其监听 192.168.1.1:8080
+  3. 开发板重启或执行 va_reload_stt 即可连接（STT URL 恒为
+     http://192.168.1.1:8080/stt，无需修改固件源码或重新烧录）
 
 依赖：
   pip install websocket-client
@@ -350,10 +350,10 @@ def main():
     print(f"  API_KEY:   {API_KEY[:8]}...")
     print(f"  监听地址:  http://{local_ip}:{PROXY_PORT}")
     print()
-    print("  在开发板 MSH 中运行以下命令，把 STT 目标指向本机:")
-    print(f"    set_stt_ip {local_ip}")
-    print(f"    va_reload_stt")
-    print("  完成后，固件将以 http://{0}:{1}/stt 作为 STT URL。".format(local_ip, PROXY_PORT))
+    print("  固件 STT 地址固定为 ROCK_SERVER_IP:8080，无 set_stt_ip 命令。")
+    print("  若要让固件连到本代理，请把本脚本部署到 ROCK 设备上并监听")
+    print("  192.168.1.1:8080，而不是在本机 {0} 上运行。".format(local_ip))
+    print("  部署到位后，开发板执行 va_reload_stt 即可生效。")
     print("=" * 50)
     print()
     print("等待 STM32 请求...")

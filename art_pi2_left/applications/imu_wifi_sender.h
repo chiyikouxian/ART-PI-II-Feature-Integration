@@ -14,8 +14,13 @@
 
 #include <rtthread.h>
 
-/* Rock服务器配置 */
-#define ROCK_SERVER_IP       "192.168.245.50"
+/* Rock服务器配置
+ * Plan B（固定内部网络）：ROCK 自建热点（热点接口 wlan1，热点侧固定 IP
+ * 192.168.1.1/24；热点 SSID/密码为已通过真机验证的凭据，定义在 main.c）。
+ * 左手固定连接 192.168.1.1:9101。
+ * 上电流程：连接热点 -> 等待 DHCP/WiFi Ready -> 主动连接下面地址。
+ * ROCK 的外部 WiFi 接口地址变化不影响本内部链路。 */
+#define ROCK_SERVER_IP       "192.168.1.1"
 #define ROCK_SERVER_PORT     9101          /* 左手端口 */
 
 /* 线程配置 */

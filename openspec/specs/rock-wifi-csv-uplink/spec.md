@@ -3,6 +3,20 @@
 ## Purpose
 Define the current WiFi/TCP uplink and control contract used by the ART-Pi2 left-hand and right-hand firmware when connected to the ROCK edge device.
 
+> **Plan B fixed internal network:** ROCK runs its own WiFi hotspot as the internal
+> network for both gloves. The hotspot interface is `wlan1` with a fixed IP
+> `192.168.1.1/24` and a field-verified SSID/password (`rockchip_4eabbe` /
+> credential stored in firmware, see `main.c` / `net_manager.c`). On power-up
+> each glove connects to that hotspot,
+> waits for DHCP / WiFi-Ready, then actively opens its ROCK TCP link:
+> left → `192.168.1.1:9101`, right → `192.168.1.1:9102`, right STT →
+> `http://192.168.1.1:8080/stt`. ROCK's other interfaces (`wlan0` / `wlP2p33s0`)
+> connect to external networks; their address changes do NOT affect the internal
+> glove ↔ ROCK links. This is a fixed endpoint — the firmware does not derive the
+> ROCK address from the DHCP default gateway. The gateway MAY be logged for
+> diagnostics (normally `192.168.1.1`). The PC discovery path (UDP `9108` / TCP
+> `9109`) remains fully independent of the ROCK endpoint.
+
 > **Dependency notice (state mismatch, not a syntax error):** This current spec references
 > `OP_STATE_RUNNING`, `OP_STATE_AUTO_STANDBY`, `OP_STATE_MANUAL_SLEEP`, and the
 > `CMD:*` / `MODE:*` control grammar. The capability that fully defines those operation
@@ -19,30 +33,35 @@ Each ART-Pi2 endpoint SHALL expose a dedicated WiFi/TCP uplink to ROCK that send
 
 #### Scenario: Left-hand uplink uses the left ROCK endpoint
 - **WHEN** the left-hand firmware starts its IMU WiFi sender
-- **THEN** it opens a TCP connection to `192.168.221.239:9101`
+- **THEN** it opens a TCP connection to `192.168.1.1:9101`
 - **AND** each uplink frame begins with `[DATA]`
 - **AND** the payload field order is `<timestamp_ms>,left,<frame_seq>,<69 raw IMU integers>\n`
 
 #### Scenario: Right-hand uplink uses the right ROCK endpoint
 - **WHEN** the right-hand firmware starts its IMU WiFi sender
-- **THEN** it opens a TCP connection to `192.168.221.239:9102`
+- **THEN** it opens a TCP connection to `192.168.1.1:9102`
 - **AND** each uplink frame begins with `[DATA]`
 - **AND** the payload field order is `<timestamp_ms>,right,<frame_seq>,<69 raw IMU integers>\n`
 
-### Requirement: ROCK Uplink Endpoint And Auxiliary TCP Defaults Remain Distinct
-The ROCK IMU uplink endpoint and the board-side auxiliary TCP defaults SHALL be treated as separate runtime roles in the current firmware branch.
+### Requirement: ROCK Uplink, STT Proxy, And Auxiliary TCP Defaults Remain Distinct
+The ROCK IMU uplink endpoint, ROCK-hosted STT proxy, and board-side auxiliary TCP defaults SHALL be treated as explicit runtime roles in the current firmware branch.
 
 #### Scenario: ROCK uplink does not use the auxiliary TCP default IP
 - **WHEN** the firmware sends raw IMU CSV frames to ROCK through `imu_wifi_sender`
 - **THEN** it SHALL use the dedicated ROCK endpoint configuration for the WiFi sender
 - **AND** it SHALL NOT derive the ROCK target from the auxiliary TCP default server IP used by other modules
 
-#### Scenario: Auxiliary TCP and STT defaults currently use the board-side helper IP
-- **WHEN** the firmware reads its current default auxiliary server configuration from `server_config.h` or `tcp_client.h`
-- **THEN** the default board-side helper IP SHALL be `192.168.221.217`
-- **AND** the auxiliary TCP monitor default port SHALL be `8266`
-- **AND** the auxiliary STT default port SHALL be `8080`
-- **AND** these defaults SHALL NOT change the ROCK IMU uplink endpoint at `192.168.221.239:9101/9102`
+#### Scenario: Right-hand STT host is a fixed read-only mirror of the ROCK endpoint
+- **WHEN** the right-hand firmware builds its STT proxy URL, at boot or via `va_reload_stt`
+- **THEN** its STT host SHALL come from the same `ROCK_SERVER_IP` used by the IMU WiFi sender
+- **AND** its STT port SHALL be `8080`
+- **AND** changing `ROCK_SERVER_IP` and rebuilding SHALL update both the ROCK IMU uplink and STT proxy host
+- **AND** the STT host and port SHALL NOT be independently overridable at runtime — there is no `set_stt_ip` command and `wifi_profile` does not manage an STT endpoint
+
+#### Scenario: Auxiliary TCP remains independently configurable
+- **WHEN** the firmware reads its auxiliary TCP server configuration
+- **THEN** that endpoint SHALL remain independent from `ROCK_SERVER_IP`
+- **AND** changing the PC endpoint SHALL NOT change the ROCK IMU uplink or default STT proxy host
 
 #### Scenario: Invalid channels are zero-filled without changing frame shape
 - **WHEN** either endpoint builds one WiFi CSV uplink frame and any IMU channel is invalid
