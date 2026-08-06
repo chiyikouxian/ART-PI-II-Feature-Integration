@@ -188,21 +188,6 @@
         max-height: 220px;
     }
 
-    /* 固定映射标签（右手专用，不可编辑） */
-    .ch-fixed-label {
-        flex: 1;
-        font-size: 12px;
-        color: #37474f;
-        padding: 3px 8px;
-        background: #f0f4ff;
-        border: 1px solid #c5d8f6;
-        border-radius: 3px;
-        font-family: 'Consolas', monospace;
-        font-weight: 500;
-        line-height: 20px;
-        display: inline-block;
-    }
-
     /* 底部提示 */
     .mapping-tip {
         padding: 6px 14px;
@@ -279,8 +264,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 const TOTAL_CHANNELS = 11;
 const DEVICES = ['left', 'right'];
 
-// 右手通道固定映射（不可更改）
-const RIGHT_FIXED_MAP = {
+// 右手首次使用及“重置全部”时采用的默认映射；所有通道均可编辑。
+const RIGHT_DEFAULT_MAP = {
     ch0:  'FingerA3R',
     ch1:  'FingerA2R',
     ch2:  'FingerB3R',
@@ -332,8 +317,7 @@ loader.load(
 
 // ==================== 构建双手映射表单 ====================
 function initMappingForms(boneNames) {
-    // 自动将右手固定映射持久化到 localStorage，确保实时翻译页面可直接使用
-    // ch7 为可编辑通道，保留已存的用户选择
+    // 仅为空缺配置补齐默认值；已经保存的右手通道配置优先，不能被默认表覆盖。
     (function() {
         var existing = { left: {}, right: {} };
         try {
@@ -343,10 +327,8 @@ function initMappingForms(boneNames) {
                 existing = (p.left || p.right) ? p : { left: p, right: {} };
             }
         } catch(e) {}
-        var savedRightCh7 = (existing.right || {}).ch7;
-        existing.right = Object.assign({}, RIGHT_FIXED_MAP);
-        // ch7 可编辑：有历史值则保留，否则沿用 RIGHT_FIXED_MAP 中的默认值
-        if (savedRightCh7 !== undefined) existing.right.ch7 = savedRightCh7;
+        existing.left = existing.left || {};
+        existing.right = Object.assign({}, RIGHT_DEFAULT_MAP, existing.right || {});
         localStorage.setItem('imu_bone_mapping', JSON.stringify(existing));
     })();
 
@@ -399,14 +381,14 @@ function initMappingForms(boneNames) {
         return opts;
     }
 
-    // 两列分组：I2C1 一列，I2C2（TCA9548A #2 + MPU9250）合并为一列
+    // 两列分组：I2C1 一列，I2C2（TCA9548A #2 + ICM-20948）合并为一列
     var groups = [
         { title: 'I2C1 - TCA9548A #1', subgroups: [
             { subtitle: '', tag: '6-DOF', channels: [0,1,2,3,4,5,6,7] }
         ]},
         { title: 'I2C2', subgroups: [
             { subtitle: 'TCA9548A #2', tag: '6-DOF', channels: [8,9] },
-            { subtitle: 'MPU9250', tag: '9-DOF', channels: [10] }
+            { subtitle: 'ICM-20948', tag: '9-DOF', channels: [10] }
         ]},
     ];
 
@@ -431,23 +413,13 @@ function initMappingForms(boneNames) {
                 }
                 sg.channels.forEach(function(i) {
                     var chKey = 'ch' + i;
-                    var isRightEditable = (dev === 'right' && chKey === 'ch7');
+                    var savedVal = devSaved[chKey] || '';
                     html += '<div class="ch-row">';
-                    if (dev === 'right' && !isRightEditable) {
-                        // 右手固定通道：直接显示标签
-                        var fixedName = RIGHT_FIXED_MAP[chKey] || '';
-                        html += '<span class="ch-status bound" id="status_' + dev + '_' + chKey + '"></span>';
-                        html += '<span class="ch-label">' + chKey + '</span>';
-                        html += '<span class="ch-fixed-label">' + fixedName + '</span>';
-                    } else {
-                        // 左手全部通道 + 右手 ch7（可编辑）：下拉选择框
-                        var savedVal = devSaved[chKey] || '';
-                        html += '<span class="ch-status' + (savedVal ? ' bound' : '') + '" id="status_' + dev + '_' + chKey + '"></span>';
-                        html += '<span class="ch-label">' + chKey + '</span>';
-                        html += '<select class="ch-select" lay-search lay-filter="chBoneMap_' + dev + '" data-dev="' + dev + '" data-ch="' + chKey + '">';
-                        html += buildOptions(savedVal);
-                        html += '</select>';
-                    }
+                    html += '<span class="ch-status' + (savedVal ? ' bound' : '') + '" id="status_' + dev + '_' + chKey + '"></span>';
+                    html += '<span class="ch-label">' + chKey + '</span>';
+                    html += '<select class="ch-select" lay-search lay-filter="chBoneMap_' + dev + '" data-dev="' + dev + '" data-ch="' + chKey + '">';
+                    html += buildOptions(savedVal);
+                    html += '</select>';
                     html += '</div>';
                 });
             });
@@ -478,21 +450,20 @@ function initMappingForms(boneNames) {
         layui.layer.msg('映射配置已保存（左手 + 右手）', { icon: 1, time: 1500 });
     });
 
-    // 重置左手全部 + 右手 ch7（其他右手通道固定不变）
+    // 重置：左手清空，右手恢复项目默认映射。
     document.getElementById('btnReset').addEventListener('click', function() {
         panels['left'].querySelectorAll('select.ch-select').forEach(function(sel) { sel.selectedIndex = 0; });
         panels['left'].querySelectorAll('.ch-status').forEach(function(el) { el.className = 'ch-status'; });
-        // 重置右手 ch7 下拉框
-        var ch7Sel = panels['right'].querySelector('select.ch-select[data-ch="ch7"]');
-        if (ch7Sel) ch7Sel.selectedIndex = 0;
-        var ch7Status = document.getElementById('status_right_ch7');
-        if (ch7Status) ch7Status.className = 'ch-status';
-        // 保存：右手 ch7 清空，其他右手通道保持固定映射
-        var saved = { left: {}, right: Object.assign({}, RIGHT_FIXED_MAP) };
-        delete saved.right.ch7;
+        panels['right'].querySelectorAll('select.ch-select').forEach(function(sel) {
+            var chKey = sel.getAttribute('data-ch');
+            sel.value = RIGHT_DEFAULT_MAP[chKey] || '';
+            var statusEl = document.getElementById('status_right_' + chKey);
+            if (statusEl) statusEl.className = 'ch-status' + (sel.value ? ' bound' : '');
+        });
+        var saved = { left: {}, right: Object.assign({}, RIGHT_DEFAULT_MAP) };
         localStorage.setItem('imu_bone_mapping', JSON.stringify(saved));
         layui.form.render('select');
-        layui.layer.msg('可编辑通道已重置（右手 ch7 已清空，其他右手通道固定不变）', { icon: 0, time: 2000 });
+        layui.layer.msg('映射已重置：左手清空，右手恢复默认配置', { icon: 0, time: 2000 });
     });
 
     // 测试 - 先保存再跳转
@@ -503,18 +474,13 @@ function initMappingForms(boneNames) {
     });
 }
 
-// 读取全部映射（双手）：左手 + 右手ch7 读取下拉框，右手其他通道使用固定映射
+// 读取双手全部可编辑通道；空字符串也会保存，避免重载时被默认值重新填充。
 function readAllMappings() {
     var map = { left: {}, right: {} };
-    // 先填充右手固定通道（ch7 除外）
-    Object.keys(RIGHT_FIXED_MAP).forEach(function(chKey) {
-        if (chKey !== 'ch7') map.right[chKey] = RIGHT_FIXED_MAP[chKey];
-    });
-    // 再从下拉框读取左手全部 + 右手 ch7
     document.querySelectorAll('.ch-select').forEach(function(sel) {
         var dev = sel.getAttribute('data-dev');
         var ch = sel.getAttribute('data-ch');
-        if (sel.value && map[dev] !== undefined) map[dev][ch] = sel.value;
+        if (map[dev] !== undefined) map[dev][ch] = sel.value;
     });
     return map;
 }

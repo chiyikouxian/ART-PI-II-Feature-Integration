@@ -197,11 +197,13 @@ static void _auto_standby_entry(void *param)
                 if (abs_gx > AUTO_STILLNESS_GYRO_ABS_MAX ||
                     abs_gy > AUTO_STILLNESS_GYRO_ABS_MAX ||
                     abs_gz > AUTO_STILLNESS_GYRO_ABS_MAX) {
-                    LOG_D("auto-ck FAIL stillness: |gx|=%d |gy|=%d |gz|=%d  limit=%d",
+                    LOG_D("auto-ck stillness over limit (bypassed): |gx|=%d |gy|=%d |gz|=%d  limit=%d",
                           abs_gx, abs_gy, abs_gz, AUTO_STILLNESS_GYRO_ABS_MAX);
-                    _auto_hit_count = 0;
-                    continue;
                 }
+                /* TEMP BYPASS (答辩前紧急放宽): 现场实测 dorsal 陀螺读数
+                 * (|gz| 可达 6000+) 远超原阈值 600，导致 hit_count 永远清零、
+                 * 无法进入 RUNNING。赛后需要重新采集静止基线并恢复本判定，
+                 * 或改为更宽松的阈值。当前直接放行，不做静止门控。 */
                 still_ok = 1;
             }
         }

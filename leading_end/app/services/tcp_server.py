@@ -33,11 +33,12 @@ _ext_cmd_seq = 0  # 单调递增序号，用于前端增量拉取
 
 _server_thread = None
 _running = False
+_connection_seq = 0
 
 
 class DeviceInfo:
     """单个设备的连接信息和数据"""
-    def __init__(self, device_id, conn, addr):
+    def __init__(self, device_id, conn, addr, connection_id):
         self.device_id = device_id
         self.conn = conn
         self.addr = f'{addr[0]}:{addr[1]}'
@@ -45,6 +46,7 @@ class DeviceInfo:
         self.last_seen = time.time()
         self.latest_data = None
         self.history = deque(maxlen=MAX_HISTORY)
+        self.connection_id = connection_id
         # Issue 5: track per-device boot_id / session_id from HELLO so the
         # frontend can surface "device rebooted" or "device reconnected" in
         # the UI. None until the first HELLO frame is parsed.
@@ -59,7 +61,20 @@ class DeviceInfo:
             'last_seen': self.last_seen,
             'boot_id': self.boot_id,
             'session_id': self.session_id,
+            'connection_id': self.connection_id,
         }
+
+
+def _decorate_sensor_frame(parsed, dev, recv_timestamp_ms=None):
+    """Attach transport metadata used by frontend ordering and reconnect logic."""
+    parsed.setdefault('recv_time', time.strftime('%H:%M:%S'))
+    parsed.setdefault('recv_timestamp_ms', (
+        int(time.monotonic() * 1000)
+        if recv_timestamp_ms is None
+        else int(recv_timestamp_ms)
+    ))
+    parsed['transport_session_id'] = dev.connection_id
+    return parsed
 
 
 # ====== 对外查询接口 ======
@@ -192,6 +207,8 @@ def _handle_client(conn, addr):
 
     device_id = None
     buffer = ''
+    hello_boot_id = None
+    hello_session_id = None
 
     try:
         while _running:
@@ -240,6 +257,8 @@ def _handle_client(conn, addr):
                             side_h, boot_h, sess_h = parts[1], parts[2], parts[3]
                             boot_id = int(boot_h, 16)
                             sess_id = int(sess_h, 16)
+                            hello_boot_id = boot_id
+                            hello_session_id = sess_id
                             print(
                                 f'[TCP] [{addr_str}] session HELLO: '
                                 f'side={side_h} boot=0x{boot_id:08x} '
@@ -283,6 +302,7 @@ def _handle_client(conn, addr):
                 try:
                     parsed = json.loads(trimmed)
                     parsed['recv_time'] = time.strftime('%H:%M:%S')
+                    parsed['recv_timestamp_ms'] = int(time.monotonic() * 1000)
 
                     # 外部命令帧单独存储，不参与设备注册
                     if parsed.get('type') == 'ext_cmd':
@@ -298,6 +318,8 @@ def _handle_client(conn, addr):
                     if device_id is None:
                         device_id = parsed.get('device', f'unknown_{addr[1]}')
                         with _lock:
+                            global _connection_seq
+                            _connection_seq += 1
                             # 如果该设备已有旧连接，关闭旧的
                             old_dev = _devices.get(device_id)
                             if old_dev and old_dev.connected:
@@ -306,13 +328,17 @@ def _handle_client(conn, addr):
                                 except Exception:
                                     pass
                                 print(f'[TCP] [{device_id}] 旧连接已替换')
-                            _devices[device_id] = DeviceInfo(device_id, conn, addr)
+                            dev = DeviceInfo(device_id, conn, addr, _connection_seq)
+                            dev.boot_id = hello_boot_id
+                            dev.session_id = hello_session_id
+                            _devices[device_id] = dev
                         print(f'[TCP] 设备注册: [{device_id}] from {addr_str}')
 
                     # 存储传感器数据
                     with _lock:
                         dev = _devices.get(device_id)
                         if dev:
+                            _decorate_sensor_frame(parsed, dev)
                             dev.latest_data = parsed
                             dev.history.appendleft(parsed)
                             dev.last_seen = time.time()

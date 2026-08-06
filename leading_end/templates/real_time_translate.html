@@ -166,9 +166,20 @@
         </button>
         <input type="file" id="modelFileInput" accept=".glb,.gltf" style="display:none;">
         <span class="model-info" id="modelInfo"></span>
+        <button class="layui-btn layui-btn-sm layui-btn-primary" id="diagToggleBtn" style="margin-left:8px;">
+            <i class="layui-icon layui-icon-util"></i> 诊断
+        </button>
     </div>
     <div class="model-area" id="modelArea">
         <div class="model-loading" id="modelLoading">模型加载中...</div>
+        <div id="diagPanel" style="display:none; position:absolute; top:8px; right:8px; background:rgba(10,10,20,0.92); border:1px solid #4488ff; border-radius:6px; padding:10px 14px; color:#aac; font-size:11px; font-family:monospace; z-index:20; min-width:280px; max-height:90%; overflow-y:auto;">
+            <div style="font-weight:600; color:#88f; margin-bottom:6px;">姿态诊断</div>
+            <div style="margin-bottom:6px;">
+                设备: <select id="diagDevice" style="background:#1a1a2e; border:1px solid #4488ff; color:#ddd; font-size:11px; padding:1px 4px;"><option value="left">左手</option><option value="right">右手</option></select>
+                通道: <select id="diagChannel" style="background:#1a1a2e; border:1px solid #4488ff; color:#ddd; font-size:11px; padding:1px 4px;"></select>
+            </div>
+            <div id="diagOutput" style="line-height:1.6;"></div>
+        </div>
     </div>
 </div>
 
@@ -207,26 +218,29 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// ==================== Madgwick 姿态融合滤波器 ====================
+// ==================== Madgwick 姿态融合滤波器（数值稳定版 v3）====================
+// 修复记录 v3:
+// - qNorm 非有限或过小时保留上一帧（不突然变 identity）
+// - gradNorm 非有限或过小时跳过 beta 校正，只做陀螺仪积分
+// - 加速度无效分支：完整计算 qDot 后统一积分（不边积分边用新值）
+// - NaN 保护：isFinite 检查后恢复到上一帧
 class MadgwickFilter {
-    constructor(beta = 0.033, sampleFreq = 10) {
+    constructor(beta = 0.04) {
         this.beta = beta;
-        this.sampleFreq = sampleFreq;
         this.q0 = 1; this.q1 = 0; this.q2 = 0; this.q3 = 0;
     }
 
-    update(ax, ay, az, gx, gy, gz) {
-        let q0 = this.q0, q1 = this.q1, q2 = this.q2, q3 = this.q3;
-        const halfT = 0.5 / this.sampleFreq;
+    update(ax, ay, az, gx, gy, gz, dt) {
+        if (!isFinite(dt) || dt <= 0 || dt > 1.0) dt = 0.1;
+        const EPS = 1e-6;
 
-        let norm = Math.sqrt(ax * ax + ay * ay + az * az);
-        if (norm < 0.001) {
-            q0 += (-q1 * gx - q2 * gy - q3 * gz) * halfT;
-            q1 += (q0 * gx + q2 * gz - q3 * gy) * halfT;
-            q2 += (q0 * gy - q1 * gz + q3 * gx) * halfT;
-            q3 += (q0 * gz + q1 * gy - q2 * gx) * halfT;
-        } else {
-            ax /= norm; ay /= norm; az /= norm;
+        const prevQ0 = this.q0, prevQ1 = this.q1, prevQ2 = this.q2, prevQ3 = this.q3;
+        let q0 = prevQ0, q1 = prevQ1, q2 = prevQ2, q3 = prevQ3;
+        const halfT = 0.5 * dt;
+        const accNorm = Math.sqrt(ax * ax + ay * ay + az * az);
+
+        if (accNorm > EPS) {
+            ax /= accNorm; ay /= accNorm; az /= accNorm;
             const _2q0 = 2*q0, _2q1 = 2*q1, _2q2 = 2*q2, _2q3 = 2*q3;
             const _4q0 = 4*q0, _4q1 = 4*q1, _4q2 = 4*q2;
             const _8q1 = 8*q1, _8q2 = 8*q2;
@@ -237,59 +251,164 @@ class MadgwickFilter {
             let s2 = 4*q0q0*q2 + _2q0*ax + _4q2*q3q3 - _2q3*ay - _4q2 + _8q2*q1q1 + _8q2*q2q2 + _4q2*az;
             let s3 = 4*q1q1*q3 - _2q1*ax + 4*q2q2*q3 - _2q2*ay;
 
-            norm = 1 / Math.sqrt(s0*s0 + s1*s1 + s2*s2 + s3*s3);
-            s0 *= norm; s1 *= norm; s2 *= norm; s3 *= norm;
-
-            const qDot0 = 0.5*(-q1*gx - q2*gy - q3*gz) - this.beta*s0;
-            const qDot1 = 0.5*(q0*gx + q2*gz - q3*gy) - this.beta*s1;
-            const qDot2 = 0.5*(q0*gy - q1*gz + q3*gx) - this.beta*s2;
-            const qDot3 = 0.5*(q0*gz + q1*gy - q2*gx) - this.beta*s3;
-
-            q0 += qDot0 / this.sampleFreq;
-            q1 += qDot1 / this.sampleFreq;
-            q2 += qDot2 / this.sampleFreq;
-            q3 += qDot3 / this.sampleFreq;
+            const gradNorm = Math.sqrt(s0*s0 + s1*s1 + s2*s2 + s3*s3);
+            let qDot0, qDot1, qDot2, qDot3;
+            if (isFinite(gradNorm) && gradNorm > EPS) {
+                s0 /= gradNorm; s1 /= gradNorm; s2 /= gradNorm; s3 /= gradNorm;
+                qDot0 = 0.5*(-q1*gx - q2*gy - q3*gz) - this.beta*s0;
+                qDot1 = 0.5*(q0*gx + q2*gz - q3*gy) - this.beta*s1;
+                qDot2 = 0.5*(q0*gy - q1*gz + q3*gx) - this.beta*s2;
+                qDot3 = 0.5*(q0*gz + q1*gy - q2*gx) - this.beta*s3;
+            } else {
+                qDot0 = 0.5*(-q1*gx - q2*gy - q3*gz);
+                qDot1 = 0.5*(q0*gx + q2*gz - q3*gy);
+                qDot2 = 0.5*(q0*gy - q1*gz + q3*gx);
+                qDot3 = 0.5*(q0*gz + q1*gy - q2*gx);
+            }
+            q0 += qDot0 * dt; q1 += qDot1 * dt; q2 += qDot2 * dt; q3 += qDot3 * dt;
+        } else {
+            const gDot0 = 0.5*(-q1*gx - q2*gy - q3*gz);
+            const gDot1 = 0.5*(q0*gx + q2*gz - q3*gy);
+            const gDot2 = 0.5*(q0*gy - q1*gz + q3*gx);
+            const gDot3 = 0.5*(q0*gz + q1*gy - q2*gx);
+            q0 += gDot0 * dt; q1 += gDot1 * dt; q2 += gDot2 * dt; q3 += gDot3 * dt;
         }
-        const nq = 1 / Math.sqrt(q0*q0 + q1*q1 + q2*q2 + q3*q3);
-        this.q0 = q0*nq; this.q1 = q1*nq; this.q2 = q2*nq; this.q3 = q3*nq;
+
+        const qNorm = Math.sqrt(q0*q0 + q1*q1 + q2*q2 + q3*q3);
+        if (isFinite(qNorm) && qNorm > EPS) {
+            q0 /= qNorm; q1 /= qNorm; q2 /= qNorm; q3 /= qNorm;
+        } else {
+            q0 = prevQ0; q1 = prevQ1; q2 = prevQ2; q3 = prevQ3;
+        }
+
+        if (!isFinite(q0) || !isFinite(q1) || !isFinite(q2) || !isFinite(q3)) {
+            this.q0 = prevQ0; this.q1 = prevQ1; this.q2 = prevQ2; this.q3 = prevQ3;
+        } else {
+            this.q0 = q0; this.q1 = q1; this.q2 = q2; this.q3 = q3;
+        }
     }
 
     getQuaternion() { return { w: this.q0, x: this.q1, y: this.q2, z: this.q3 }; }
     reset() { this.q0 = 1; this.q1 = 0; this.q2 = 0; this.q3 = 0; }
+    isValid() {
+        return isFinite(this.q0) && isFinite(this.q1) && isFinite(this.q2) && isFinite(this.q3)
+            && Math.abs(this.q0*this.q0 + this.q1*this.q1 + this.q2*this.q2 + this.q3*this.q3 - 1) < 0.1;
+    }
+    getNorm() {
+        return Math.sqrt(this.q0*this.q0 + this.q1*this.q1 + this.q2*this.q2 + this.q3*this.q3);
+    }
 }
 
-// ==================== 常量 & 状态 ====================
+// ==================== 常量 ====================
 const TOTAL_CHANNELS = 11;
 const DEVICES = ['left', 'right'];
-const GYRO_SCALE = 16.4;       // MPU6050 ±2000dps
-const ACCEL_SCALE = 16384.0;   // MPU6050 ±2g
-const GYRO_SCALE_ICM  = 65.5;  // ICM-20948 实际配置 ±500dps (寄存器 0x03)
-const ACCEL_SCALE_ICM = 8192.0; // ICM-20948 实际配置 ±4g (寄存器 0x03)
+const GYRO_SCALE = 16.4;
+const ACCEL_SCALE = 16384.0;
+const GYRO_SCALE_ICM = 65.5;
+const ACCEL_SCALE_ICM = 8192.0;
 const DEG2RAD = Math.PI / 180;
 const POLL_INTERVAL = 50;
-const SENSOR_DATA_RATE = 10;       // 开发板实际发送频率 10Hz
-const GYRO_DEADZONE_DEG  = 1.5;   // 陀螺仪死区 (deg/s)：低于此值视为静止，偏置归零
-const ROTATION_DEADZONE_RAD = 2.0 * Math.PI / 180; // 输出旋转死区 (2°)：校准后角度过小时归 identity
+const GYRO_DEADZONE_DEG = 1.5;
+const ROTATION_DEADZONE_RAD = 0.8 * Math.PI / 180;
+const MAX_DT = 0.5;
+const MIN_DT = 0.02;
+const STABILITY_GYRO_THRESH_DEG = 1.0;
+// 部分安装后的传感器存在比例/偏置误差（实测 ch9 静止约 0.799g）。
+// Madgwick 会归一化加速度向量，因此静止检测允许 0.75g~1.25g，
+// 同时仍依赖陀螺仪阈值，避免在明显运动时采集零偏或姿态参考。
+const STABILITY_ACCEL_TOL = 0.25;
+const CALIB_STABLE_FRAMES = 15;
+const CALIB_MIN_FRAMES = 10;
+const KEYFRAME_DELAY_MS = 3000;
 
-// 每只手各 11 个滤波器和目标四元数
+// 零偏启动校准：要求明显静止一段时间后采集均值
+const BIAS_BOOT_FRAMES = 30;     // 启动校准需要累积的稳定帧数
+const BIAS_BOOT_MAX_GYRO = 5.0;  // 启动静止窗口允许估计较大的传感器零偏
+
+// 数据链时间戳：当前固件/后端未提供设备级毫秒时间戳
+// （参考 leading_end/app/services/tcp_server.py:285 和 leading_end/app/views/api.py:150）。
+// 因此 dt 实际使用 HTTP 到达时间差。
+// 一旦后端添加 data.timestamp/ts/t/recv_ts 数值字段（毫秒），下列代码会自动生效。
+const DEVICE_TIMESTAMP_FIELDS = ['timestamp_ms', 'recv_timestamp_ms'];
+
+// ==================== 每通道安装坐标修正 ====================
+// mountQuat: 传感器固连坐标到身体坐标的旋转变换
+// identity 配置下数据不变
+const CHANNEL_CORRECTION = { left: {}, right: {} };
+for (const dev of DEVICES) {
+    for (let i = 0; i < TOTAL_CHANNELS; i++) {
+        CHANNEL_CORRECTION[dev]['ch' + i] = {
+            axisSwap: [0, 1, 2],
+            flip: [1, 1, 1],
+            mountQuat: { x: 0, y: 0, z: 0, w: 1 }
+        };
+    }
+}
+
+// 一、坐标修正：加速度计和陀螺仪使用相同 axisSwap/flip/mountQuat
+function applyChannelCorrection(ax, ay, az, gx, gy, gz, dev, ch) {
+    const corr = CHANNEL_CORRECTION[dev]['ch' + ch];
+    if (!corr) return { ax, ay, az, gx, gy, gz };
+
+    const swap = corr.axisSwap;
+    const flip = corr.flip;
+    const rawAccel = [ax, ay, az];
+    const rawGyro = [gx, gy, gz];
+    const ca = [rawAccel[swap[0]] * flip[0], rawAccel[swap[1]] * flip[1], rawAccel[swap[2]] * flip[2]];
+    const cg = [rawGyro[swap[0]] * flip[0], rawGyro[swap[1]] * flip[1], rawGyro[swap[2]] * flip[2]];
+
+    const mq = corr.mountQuat;
+    if (Math.abs(mq.w) < 0.9999) {
+        const mQuat = new THREE.Quaternion(mq.x, mq.y, mq.z, mq.w);
+        const vA = new THREE.Vector3(ca[0], ca[1], ca[2]);
+        const vG = new THREE.Vector3(cg[0], cg[1], cg[2]);
+        vA.applyQuaternion(mQuat);
+        vG.applyQuaternion(mQuat);
+        return { ax: vA.x, ay: vA.y, az: vA.z, gx: vG.x, gy: vG.y, gz: vG.z };
+    }
+    return { ax: ca[0], ay: ca[1], az: ca[2], gx: cg[0], gy: cg[1], gz: cg[2] };
+}
+
+// ==================== 每设备状态 ====================
 const filters = {};
 const targetQuats = {};
+const gyroBias = {};            // 每通道零偏启动估计值（度/秒）
+const gyroBiasSamples = {};     // 启动校准累计静止帧样本 [gxSum, gySum, gzSum, count]
+const gyroBiasReady = {};       // 零偏是否已完成启动估计
+const deviceCalibGeneration = {};   // 校准时记录的设备代次（防ID复位覆盖旧校准）
+const currentDeviceGeneration = {};  // 设备当前代次（启动时为 0；data.sessionId 变化时递增）
+const lastDeviceTs = {};
+const lastUpdateTime = {};
+const lastDataId = { left: -1, right: -1 };
+const pollInFlight = { left: false, right: false };
+const currentSessionKey = { left: '', right: '' };
+const calibrationCaptureAt = { left: 0, right: 0 };
+
 DEVICES.forEach(function(dev) {
     filters[dev] = [];
     targetQuats[dev] = [];
+    gyroBias[dev] = [];
+    gyroBiasSamples[dev] = [];
+    gyroBiasReady[dev] = [];
+    lastDeviceTs[dev] = null;
+    lastUpdateTime[dev] = 0;
+    deviceCalibGeneration[dev] = -1;
+    currentDeviceGeneration[dev] = 0;
+    currentSessionKey[dev] = '';
+    calibrationCaptureAt[dev] = Date.now() + KEYFRAME_DELAY_MS;
     for (let i = 0; i < TOTAL_CHANNELS; i++) {
-        filters[dev].push(new MadgwickFilter(0.033, SENSOR_DATA_RATE));
+        filters[dev].push(new MadgwickFilter(0.04));
         targetQuats[dev].push(new THREE.Quaternion());
+        gyroBias[dev].push({ x: 0, y: 0, z: 0 });
+        gyroBiasSamples[dev].push({ x: 0, y: 0, z: 0, count: 0 });
+        gyroBiasReady[dev].push(false);
     }
 });
 
 let channelBoneMap = { left: {}, right: {} };
 let bonesByName = {};
 let boneInitQuats = {};
-let lastDataTime = 0;
-let lastDataId = { left: -1, right: -1 };
 
-// 反向映射表: 骨骼名 → {dev, channel}，用于层级旋转时查找父骨骼对应的通道
 let boneToChanDev = {};
 function rebuildBoneToChanDev() {
     boneToChanDev = {};
@@ -297,37 +416,39 @@ function rebuildBoneToChanDev() {
         const devMap = channelBoneMap[dev] || {};
         for (let i = 0; i < TOTAL_CHANNELS; i++) {
             const boneName = devMap['ch' + i];
-            if (boneName) boneToChanDev[boneName] = { dev: dev, channel: i };
+            if (boneName) boneToChanDev[boneName] = { dev, channel: i };
         }
     });
 }
 
-// 校准逆四元数（匹配Blender: calib_q_inv = quaternionInverse(q_initial)，直接存逆）
+// ==================== 校准状态（按设备同步）====================
 const calibInvQuats = {};
 const calibDone = {};
-const CALIB_DELAY = 50; // 50帧≈5秒，充分等待Madgwick在高beta下收敛后再捕获参考姿态
-const calibFrameCount = {};
-// 缓存每帧校准后的四元数供层级旋转复用（匹配Blender: q_cal = q_initial_inv * q_current）
+const calibStableCount = {};
 const calibratedQuats = {};
+const deviceCalibDone = {};
+
 DEVICES.forEach(function(dev) {
-    calibInvQuats[dev] = [];
-    calibDone[dev] = [];
-    calibFrameCount[dev] = [];
-    calibratedQuats[dev] = [];
+    calibInvQuats[dev] = []; calibDone[dev] = []; calibStableCount[dev] = [];
+    calibratedQuats[dev] = []; deviceCalibDone[dev] = false;
     for (let i = 0; i < TOTAL_CHANNELS; i++) {
         calibInvQuats[dev].push(new THREE.Quaternion());
         calibDone[dev].push(false);
-        calibFrameCount[dev].push(0);
+        calibStableCount[dev].push(0);
         calibratedQuats[dev].push(new THREE.Quaternion());
     }
 });
 
-// 从 localStorage 加载映射（通道映射页面保存的）
+// 诊断状态
+let diagEnabled = false;
+let diagDevice = 'left';
+let diagChannel = 0;
+
+// 从 localStorage 加载映射
 try {
     const s = localStorage.getItem('imu_bone_mapping');
     if (s) {
         const parsed = JSON.parse(s);
-        // 兼容旧格式（无 left/right 层级）
         if (parsed.left || parsed.right) {
             channelBoneMap.left = parsed.left || {};
             channelBoneMap.right = parsed.right || {};
@@ -337,6 +458,70 @@ try {
     }
 } catch(e) {}
 rebuildBoneToChanDev();
+
+// ==================== 诊断 UI ====================
+function initDiagPanel() {
+    const btn = document.getElementById('diagToggleBtn');
+    const panel = document.getElementById('diagPanel');
+    const devSel = document.getElementById('diagDevice');
+    const chSel = document.getElementById('diagChannel');
+    for (let i = 0; i < TOTAL_CHANNELS; i++) {
+        const opt = document.createElement('option');
+        opt.value = i; opt.textContent = 'ch' + i;
+        chSel.appendChild(opt);
+    }
+    btn.addEventListener('click', function() {
+        diagEnabled = !diagEnabled;
+        panel.style.display = diagEnabled ? '' : 'none';
+        btn.style.background = diagEnabled ? '#1a5699' : '';
+    });
+    devSel.addEventListener('change', function() { diagDevice = devSel.value; });
+    chSel.addEventListener('change', function() { diagChannel = parseInt(chSel.value); });
+}
+initDiagPanel();
+
+function quaternionAngleDeg(q) {
+    if (!q || !isFinite(q.w)) return 0;
+    return (2 * Math.acos(Math.min(1, Math.abs(q.w)))) * 180 / Math.PI;
+}
+
+function updateDiagOutput() {
+    if (!diagEnabled) return;
+    const out = document.getElementById('diagOutput');
+    if (!out) return;
+
+    const dev = diagDevice;
+    const ch = diagChannel;
+    const f = filters[dev][ch];
+    const cal = calibratedQuats[dev][ch];
+    const tgt = targetQuats[dev][ch];
+    const boneName = (channelBoneMap[dev] || {})['ch' + ch] || '未绑定';
+    const bias = gyroBias[dev][ch];
+    const hasNaN = !f.isValid();
+    const norm = f.getNorm();
+
+    let ancestorInfo = '无（根骨骼）';
+    const ancDevCh = findMappedAncestor(boneName);
+    if (ancDevCh) ancestorInfo = ((channelBoneMap[ancDevCh.dev] || {})['ch' + ancDevCh.channel] || '') + ' (ch' + ancDevCh.channel + ')';
+
+    out.innerHTML =
+        '<div style="color:#8af; margin-bottom:4px;">通道: ' + boneName + '</div>' +
+        '<div>Madgwick: w=' + f.q0.toFixed(4) + ' x=' + f.q1.toFixed(4) + ' y=' + f.q2.toFixed(4) + ' z=' + f.q3.toFixed(4) + '</div>' +
+        '<div>|q|: <span style="color:' + (Math.abs(norm-1)<0.01 ? '#5f5' : '#f55') + '">' + norm.toFixed(5) + '</span></div>' +
+        '<div>Madgwick角度: <span style="color:#8f8">' + quaternionAngleDeg(f.getQuaternion()).toFixed(1) + '°</span></div>' +
+        '<div>Calibrated: <span style="color:#ff8">' + quaternionAngleDeg(cal).toFixed(1) + '°</span> ' +
+            (calibDone[dev][ch] ? '<span style="color:#5f5">[OK]</span>' : '<span style="color:#f55">[未完成]</span>') + '</div>' +
+        '<div>Target: <span style="color:#8ff">' + quaternionAngleDeg(tgt).toFixed(1) + '°</span></div>' +
+        '<div>最近祖先: ' + ancestorInfo + '</div>' +
+        '<div>整手校准: ' + (deviceCalibDone[dev] ? '<span style="color:#5f5">[完成-锁定]</span>' :
+            '<span>[关键帧倒计时 ' + Math.max(0, (calibrationCaptureAt[dev] - Date.now()) / 1000).toFixed(1) + 's]</span>') + '</div>' +
+        '<div>校准时设备代次: ' + deviceCalibGeneration[dev] + ' / 当前: ' + currentDeviceGeneration[dev] + '</div>' +
+        '<div>零偏稳定帧: ' + calibStableCount[dev][ch] + '</div>' +
+        '<div>零偏(deg/s): gx=' + bias.x.toFixed(3) + ' gy=' + bias.y.toFixed(3) + ' gz=' + bias.z.toFixed(3) +
+            (gyroBiasReady[dev][ch] ? ' <span style="color:#5f5">[已锁定]</span>' :
+             ' <span>[启动采集中 '+ gyroBiasSamples[dev][ch].count + '/' + BIAS_BOOT_FRAMES +']</span>') + '</div>' +
+        '<div style="color:' + (hasNaN ? '#f55' : '#5f5') + ';">' + (hasNaN ? '[NaN!]' : '[正常]') + '</div>';
+}
 
 // ==================== Three.js 场景 ====================
 const container = document.getElementById('modelArea');
@@ -364,7 +549,6 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.update();
 
-// 灯光
 scene.add(new THREE.AmbientLight(0xccddff, 0.4));
 const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
 dirLight.position.set(5, 10, 5);
@@ -427,44 +611,49 @@ function updateBoneViz() {
     });
 }
 
-// ==================== 加载 / 切换模型 ====================
+// ==================== 重置设备状态 ====================
+function resetDeviceState(dev) {
+    for (let i = 0; i < TOTAL_CHANNELS; i++) {
+        filters[dev][i].reset();
+        targetQuats[dev][i].identity();
+        calibInvQuats[dev][i].identity();
+        calibDone[dev][i] = false;
+        calibStableCount[dev][i] = 0;
+        calibratedQuats[dev][i].identity();
+        gyroBias[dev][i] = { x: 0, y: 0, z: 0 };
+        gyroBiasSamples[dev][i] = { x: 0, y: 0, z: 0, count: 0 };
+        gyroBiasReady[dev][i] = false;
+    }
+    lastDataId[dev] = -1;
+    lastDeviceTs[dev] = null;
+    lastUpdateTime[dev] = 0;
+    pollInFlight[dev] = false;
+    deviceCalibDone[dev] = false;
+    deviceCalibGeneration[dev] = -1;
+    calibrationCaptureAt[dev] = Date.now() + KEYFRAME_DELAY_MS;
+}
+
+function resetTrackingForNewSession(dev) {
+    resetDeviceState(dev);
+    pollInFlight[dev] = true;
+}
+
+// ==================== 加载模型 ====================
 const loader = new GLTFLoader();
 let currentModel = null;
 let pollingStarted = false;
-let currentModelName = 'hand_set.glb';
 
 function loadModel(filename) {
-    // 显示加载提示
     loadingEl.style.display = '';
     loadingEl.textContent = '模型加载中...';
-
-    // 清理旧模型
-    if (currentModel) {
-        scene.remove(currentModel);
-        currentModel = null;
-    }
-    if (boneGroup) {
-        scene.remove(boneGroup);
-        boneGroup = null;
-    }
+    if (currentModel) { scene.remove(currentModel); currentModel = null; }
+    if (boneGroup) { scene.remove(boneGroup); boneGroup = null; }
     boneVizData = [];
     bonesByName = {};
     boneInitQuats = {};
     window.handModel = null;
     window.handBones = null;
-
-    // 重置滤波器和校准状态（双手）
-    DEVICES.forEach(function(dev) {
-        for (let i = 0; i < TOTAL_CHANNELS; i++) {
-            filters[dev][i].reset();
-            targetQuats[dev][i].identity();
-            calibInvQuats[dev][i].identity();
-            calibDone[dev][i] = false;
-            calibFrameCount[dev][i] = 0;
-            calibratedQuats[dev][i].identity();
-        }
-        lastDataId[dev] = -1;
-    });
+    DEVICES.forEach(function(dev) { resetDeviceState(dev); });
 
     const modelUrl = '/static/models/' + encodeURIComponent(filename);
     loader.load(
@@ -473,7 +662,6 @@ function loadModel(filename) {
             const model = gltf.scene;
             scene.add(model);
             currentModel = model;
-            currentModelName = filename;
 
             const box = new THREE.Box3();
             const bones = [];
@@ -494,9 +682,18 @@ function loadModel(filename) {
                     const p = new THREE.Vector3(); p.setFromMatrixPosition(child.matrixWorld); box.expandByPoint(p);
                 }
             });
-            bones.forEach(function(bone) { bonesByName[bone.name] = bone; boneInitQuats[bone.name] = bone.quaternion.clone(); });
+            bones.forEach(function(bone) {
+                bonesByName[bone.name] = bone;
+                boneInitQuats[bone.name] = bone.quaternion.clone();
+            });
             rebuildBoneViz(bones);
             window.handModel = model; window.handBones = bones;
+
+            console.log('=== 骨骼层级 ===');
+            bones.forEach(function(bone) {
+                const depth = getBoneDepth(bone);
+                console.log('  '.repeat(depth) + bone.name);
+            });
 
             const center = new THREE.Vector3();
             let maxDim = 1;
@@ -506,13 +703,8 @@ function loadModel(filename) {
             camera.lookAt(center); controls.update();
             camera.near = 0.001; camera.far = maxDim * 100; camera.updateProjectionMatrix();
             loadingEl.style.display = 'none';
-
-            // 更新模型信息
             document.getElementById('modelInfo').textContent = '骨骼数: ' + bones.length;
-
             if (!pollingStarted) { pollingStarted = true; startPolling(); }
-
-            // 保存选择到 localStorage
             localStorage.setItem('selected_skeleton_model', filename);
         },
         function(xhr) { if (xhr.total > 0) loadingEl.textContent = '模型加载中... ' + Math.round(xhr.loaded / xhr.total * 100) + '%'; },
@@ -520,7 +712,13 @@ function loadModel(filename) {
     );
 }
 
-// ==================== 模型列表与切换 ====================
+function getBoneDepth(bone) {
+    let d = 0, p = bone.parent;
+    while (p && p.isBone) { d++; p = p.parent; }
+    return d;
+}
+
+// ==================== 模型列表 ====================
 const modelSelect = document.getElementById('modelSelect');
 const deleteModelBtn = document.getElementById('deleteModelBtn');
 const uploadModelBtn = document.getElementById('uploadModelBtn');
@@ -533,162 +731,239 @@ function refreshModelList(selectName) {
         res.data.forEach(function(m) {
             const opt = document.createElement('option');
             opt.value = m.name;
-            opt.textContent = m.name + (m.is_default ? '（默认）' : '') +
-                ' (' + (m.size / 1024).toFixed(0) + ' KB)';
+            opt.textContent = m.name + (m.is_default ? '（默认）' : '') + ' (' + (m.size / 1024).toFixed(0) + ' KB)';
             modelSelect.appendChild(opt);
         });
         if (selectName) modelSelect.value = selectName;
         updateDeleteBtnVisibility();
     }).catch(function() {});
 }
-
 function updateDeleteBtnVisibility() {
     deleteModelBtn.style.display = modelSelect.value === 'hand_set.glb' ? 'none' : '';
 }
-
-modelSelect.addEventListener('change', function() {
-    updateDeleteBtnVisibility();
-    loadModel(modelSelect.value);
-});
-
+modelSelect.addEventListener('change', function() { updateDeleteBtnVisibility(); loadModel(modelSelect.value); });
 uploadModelBtn.addEventListener('click', function() { modelFileInput.click(); });
-
 modelFileInput.addEventListener('change', function() {
     const file = modelFileInput.files[0];
     if (!file) return;
     const formData = new FormData();
     formData.append('file', file);
-
     loadingEl.style.display = '';
     loadingEl.textContent = '正在上传模型...';
-
     fetch('/api/models/upload', { method: 'POST', body: formData })
         .then(r => r.json())
         .then(function(res) {
-            if (res.code === 0) {
-                refreshModelList(res.data.name);
-                loadModel(res.data.name);
-                layui.layer.msg('模型上传成功');
-            } else {
-                loadingEl.style.display = 'none';
-                layui.layer.msg(res.msg, { icon: 2 });
-            }
-        })
-        .catch(function() {
-            loadingEl.style.display = 'none';
-            layui.layer.msg('上传失败', { icon: 2 });
-        });
+            if (res.code === 0) { refreshModelList(res.data.name); loadModel(res.data.name); layui.layer.msg('模型上传成功'); }
+            else { loadingEl.style.display = 'none'; layui.layer.msg(res.msg, { icon: 2 }); }
+        }).catch(function() { loadingEl.style.display = 'none'; layui.layer.msg('上传失败', { icon: 2 }); });
     modelFileInput.value = '';
 });
-
 deleteModelBtn.addEventListener('click', function() {
     const name = modelSelect.value;
     if (name === 'hand_set.glb') return;
     layui.layer.confirm('确定删除模型 "' + name + '" 吗？', { icon: 3, title: '确认' }, function(idx) {
-        fetch('/api/models/delete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name })
-        }).then(r => r.json()).then(function(res) {
-            layui.layer.close(idx);
-            if (res.code === 0) {
-                layui.layer.msg('删除成功');
-                refreshModelList('hand_set.glb');
-                loadModel('hand_set.glb');
-            } else {
-                layui.layer.msg(res.msg, { icon: 2 });
-            }
-        }).catch(function() { layui.layer.close(idx); layui.layer.msg('删除失败', { icon: 2 }); });
+        fetch('/api/models/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name }) })
+            .then(r => r.json()).then(function(res) {
+                layui.layer.close(idx);
+                if (res.code === 0) { layui.layer.msg('删除成功'); refreshModelList('hand_set.glb'); loadModel('hand_set.glb'); }
+                else layui.layer.msg(res.msg, { icon: 2 });
+            }).catch(function() { layui.layer.close(idx); layui.layer.msg('删除失败', { icon: 2 }); });
     });
 });
 
-// 初始化：加载模型列表并加载上次选择的模型
 const savedModel = localStorage.getItem('selected_skeleton_model') || 'hand_set.glb';
 refreshModelList(savedModel);
 loadModel(savedModel);
 
 // ==================== 传感器轮询 + 姿态驱动 ====================
+// 设计要点：
+// - in-flight 锁防止异步重叠（三、3）
+// - 优先使用设备时间戳，否则用到达时间降级（三、2、3）
+// - data.id 单调性判断（旧帧/重复帧跳过）（三、5）
+// - 进入页面/复位后第 3 秒捕获关键参考帧（四）
+// - 零偏估计：静止时缓慢更新（六）
 function startPolling() { setInterval(pollSensorData, POLL_INTERVAL); }
 
 async function pollSensorData() {
-    // 同时轮询左右两只手的设备数据
     for (const dev of DEVICES) {
+        if (pollInFlight[dev]) continue;
+        pollInFlight[dev] = true;
+
         try {
             const resp = await fetch('/api/device/latest?device=' + dev);
-            if (!resp.ok) continue;
+            if (!resp.ok) { pollInFlight[dev] = false; continue; }
             const json = await resp.json();
-            if (json.code !== 0 || !json.data) continue;
+            if (json.code !== 0 || !json.data) { pollInFlight[dev] = false; continue; }
             const data = json.data;
-            if (data.id === lastDataId[dev]) continue;
-            lastDataId[dev] = data.id;
 
-            // 设备数据格式: {"device":"left", "left":{"ch0":{ax,ay,...},...}}
+            // 三、5 deviceGeneration 处理：优先使用后端TCP连接代次。
+            // 一旦检测到会话变化或 resets 增加，认为设备已重连，递增代次。
+            // 这允许 lastDataId 在每次新会话从 0/小值重新开始
+            const newSession = data.transport_session_id ?? data.sessionId ?? data.session_id ?? null;
+            const resets = (typeof data.resets === 'number') ? data.resets : null;
+            const sessKey = (newSession !== null ? String(newSession) : 'noSession') + ':' + (resets !== null ? String(resets) : 'noResets');
+            if (sessKey !== currentSessionKey[dev]) {
+                // 检测到新会话或复位，递增代次
+                currentDeviceGeneration[dev]++;
+                currentSessionKey[dev] = sessKey;
+                resetTrackingForNewSession(dev);
+            }
+
+            // 三、5 data.id 单调性判断（仅在同代次内）
+            const newId = data.id;
+            if (newId !== undefined && newId !== null) {
+                if (typeof newId === 'number') {
+                    if (newId <= lastDataId[dev]) { pollInFlight[dev] = false; continue; }
+                }
+                lastDataId[dev] = newId;
+            }
+
+            const now = Date.now();
+
+            // 三、2 dt 计算
+            // 当前后端提供 recv_timestamp_ms；未来固件提供 timestamp_ms 时会优先使用。
+            let dt = 0.1;
+            let devTsUsed = false;
+            let devTs = null;
+            for (const f of DEVICE_TIMESTAMP_FIELDS) {
+                if (typeof data[f] === 'number' && isFinite(data[f])) {
+                    devTs = data[f]; devTsUsed = true; break;
+                }
+            }
+            if (devTsUsed) {
+                if (lastDeviceTs[dev] !== null && isFinite(lastDeviceTs[dev])) {
+                    dt = (devTs - lastDeviceTs[dev]) / 1000.0;
+                    dt = Math.max(MIN_DT, Math.min(MAX_DT, dt));
+                }
+                lastDeviceTs[dev] = devTs;
+            } else {
+                if (lastUpdateTime[dev] > 0) {
+                    dt = (now - lastUpdateTime[dev]) / 1000.0;
+                    dt = Math.max(MIN_DT, Math.min(MAX_DT, dt));
+                }
+            }
+            lastUpdateTime[dev] = now;
+
             const handData = data[dev];
-            if (!handData) continue;
+            if (!handData) { pollInFlight[dev] = false; continue; }
+
+            // ------ 第一遍：更新滤波器 + 零偏估计 + 稳定性检测 ------
+            const chStable = new Array(TOTAL_CHANNELS).fill(false);
+            const chValid = new Array(TOTAL_CHANNELS).fill(false);
 
             for (let i = 0; i < TOTAL_CHANNELS; i++) {
                 const ch = handData['ch' + i];
                 if (!ch) continue;
-                // if (dev === 'right' && i === 7) continue;  // ch7 已修复，不再跳过
 
-                // 1. 陀螺仪死区：静止时偏置归零，阻断积分漂移
-                // ch10 = ICM-20948，实际量程 ±500dps/±4g，其余为 MPU6050 ±2000dps/±2g
+                if (!isFinite(ch.ax) || !isFinite(ch.ay) || !isFinite(ch.az) ||
+                    !isFinite(ch.gx) || !isFinite(ch.gy) || !isFinite(ch.gz)) continue;
+                chValid[i] = true;
+
                 const isICM = (i === 10);
-                const gScale = isICM ? GYRO_SCALE_ICM  : GYRO_SCALE;
+                const gScale = isICM ? GYRO_SCALE_ICM : GYRO_SCALE;
                 const aScale = isICM ? ACCEL_SCALE_ICM : ACCEL_SCALE;
-                let gxDeg = ch.gx / gScale;
-                let gyDeg = ch.gy / gScale;
-                let gzDeg = ch.gz / gScale;
-                const gyroMag = Math.sqrt(gxDeg*gxDeg + gyDeg*gyDeg + gzDeg*gzDeg);
-                if (gyroMag < GYRO_DEADZONE_DEG) { gxDeg = 0; gyDeg = 0; gzDeg = 0; }
 
-                // 2. Madgwick 更新（高 beta 让加速度计持续纠偏）
-                filters[dev][i].update(
+                // 一、坐标修正（加速度计 + 陀螺仪）
+                const corrected = applyChannelCorrection(
                     ch.ax / aScale, ch.ay / aScale, ch.az / aScale,
-                    gxDeg * DEG2RAD, gyDeg * DEG2RAD, gzDeg * DEG2RAD
+                    ch.gx / gScale, ch.gy / gScale, ch.gz / gScale,
+                    dev, i
                 );
 
-                // 3. 累帧捕获参考姿态（等待滤波器充分收敛）
-                calibFrameCount[dev][i]++;
-                const rq = filters[dev][i].getQuaternion();
-                const sensorQ = new THREE.Quaternion(rq.x, rq.y, rq.z, rq.w);
-                if (!calibDone[dev][i] && calibFrameCount[dev][i] >= CALIB_DELAY) {
-                    calibInvQuats[dev][i].copy(sensorQ).invert();
-                    calibDone[dev][i] = true;
+                let gxDeg = corrected.gx;
+                let gyDeg = corrected.gy;
+                let gzDeg = corrected.gz;
+                const gyroMag = Math.sqrt(gxDeg*gxDeg + gyDeg*gyDeg + gzDeg*gzDeg);
+                const accMag = Math.sqrt(corrected.ax**2 + corrected.ay**2 + corrected.az**2);
+
+                // 三、6 启动阶段显式采集零偏
+                //   - 仅当全局更严格的 BIAS_BOOT_MAX_GYRO 阈值内才计数
+                //   - 达到 BIAS_BOOT_FRAMES 后求平均并锁定
+                //   - 之后即使运动，bias 不再变化
+                //   - 重置（resetDeviceState）后重新进入启动校准
+                if (!gyroBiasReady[dev][i]) {
+                    if (gyroMag < BIAS_BOOT_MAX_GYRO && Math.abs(accMag - 1.0) < STABILITY_ACCEL_TOL) {
+                        const s = gyroBiasSamples[dev][i];
+                        s.x += gxDeg; s.y += gyDeg; s.z += gzDeg; s.count++;
+                        if (s.count >= BIAS_BOOT_FRAMES) {
+                            gyroBias[dev][i] = { x: s.x / s.count, y: s.y / s.count, z: s.z / s.count };
+                            gyroBiasReady[dev][i] = true;
+                            console.log('[零偏启动校准完成]', dev, 'ch' + i,
+                                'bias=', JSON.stringify(gyroBias[dev][i]));
+                        }
+                    } else {
+                        // 检测到运动，重置该通道样本
+                        gyroBiasSamples[dev][i] = { x: 0, y: 0, z: 0, count: 0 };
+                    }
                 }
 
-                // 4. 应用校准 + 输出旋转死区（角度极小时归 identity，消除可见微抖）
-                if (calibDone[dev][i]) {
-                    calibratedQuats[dev][i].copy(calibInvQuats[dev][i]).multiply(sensorQ);
-                    const angle = 2 * Math.acos(Math.min(1, Math.abs(calibratedQuats[dev][i].w)));
-                    if (angle < ROTATION_DEADZONE_RAD) calibratedQuats[dev][i].set(0, 0, 0, 1);
+                // 扣除零偏（如已就绪）+ 死区
+                const b = gyroBias[dev][i];
+                gxDeg -= b.x; gyDeg -= b.y; gzDeg -= b.z;
+                const gyroMag2 = Math.sqrt(gxDeg*gxDeg + gyDeg*gyDeg + gzDeg*gzDeg);
+                if (gyroMag2 < GYRO_DEADZONE_DEG) { gxDeg = 0; gyDeg = 0; gzDeg = 0; }
+
+                filters[dev][i].update(
+                    corrected.ax, corrected.ay, corrected.az,
+                    gxDeg * DEG2RAD, gyDeg * DEG2RAD, gzDeg * DEG2RAD,
+                    dt
+                );
+
+                chStable[i] = gyroBiasReady[dev][i] && gyroMag2 < STABILITY_GYRO_THRESH_DEG &&
+                               Math.abs(accMag - 1.0) < STABILITY_ACCEL_TOL;
+                if (chStable[i]) {
+                    calibStableCount[dev][i]++;
+                } else {
+                    calibStableCount[dev][i] = 0;
                 }
             }
+
+            // ------ 四、第 3 秒捕获关键参考帧（仅首次锁定）------
+            // 校准完成后保持不变，仅在以下情况失效：
+            //   - 用户点击"复位手势"按钮
+            //   - 重新加载模型
+            //   - 网络断连重连（currentDeviceGeneration 变化）
+            // 正常动作期间不重新校准，避免覆盖演示初始姿态
+            tryCalibrateDeviceFrame(dev, chValid, chStable, function(i) {
+                return filters[dev][i].getQuaternion();
+            });
+
+            // ------ 应用校准 ------
+            for (let i = 0; i < TOTAL_CHANNELS; i++) {
+                if (!calibDone[dev][i]) continue;
+                const rq = filters[dev][i].getQuaternion();
+                if (!isFinite(rq.w)) continue;
+                const sensorQ = new THREE.Quaternion(rq.x, rq.y, rq.z, rq.w);
+                calibratedQuats[dev][i].copy(calibInvQuats[dev][i]).multiply(sensorQ);
+                const angle = 2 * Math.acos(Math.min(1, Math.abs(calibratedQuats[dev][i].w)));
+                if (angle < ROTATION_DEADZONE_RAD) calibratedQuats[dev][i].set(0, 0, 0, 1);
+            }
         } catch(e) {}
+
+        pollInFlight[dev] = false;
     }
+
     updateTargetQuaternions();
+    updateDiagOutput();
+}
+
+// 五、查找最近的映射祖先（生产函数，可单元测试）
+// boneName: 当前骨骼名；返回 {dev, channel} 或 null
+function findMappedAncestor(boneName) {
+    const bone = bonesByName[boneName];
+    if (!bone) return null;
+    let p = bone.parent;
+    while (p && p.isBone) {
+        const info = boneToChanDev[p.name];
+        if (info && calibDone[info.dev][info.channel]) return info;
+        p = p.parent;
+    }
+    return null;
 }
 
 function updateTargetQuaternions() {
-    // 匹配Blender层级模式（DUAL_SENSOR_INDEPENDENT=False）
-    // 父骨骼：直接使用校准后四元数（calibratedQuats）
-    // 子骨骼：parent_cal_inv × child_cal（匹配Blender: q0_rel = q1_inv * q0）
     const initQuat = new THREE.Quaternion();
     const parentCalInv = new THREE.Quaternion();
-    const childRelative = new THREE.Quaternion();
-
-    // ---- 右手 ch7 软件合成（已注释，ch7 硬件已修复） ----
-    // (function synthRightCh7() {
-    //     const d = calibratedQuats['right'];
-    //     const done = calibDone['right'];
-    //     if (!done[5] || !done[9]) return;
-    //     const synth = d[5].clone().slerp(d[9], 0.5);
-    //     if (done[6]) synth.slerp(d[6], 0.15);
-    //     if (done[4]) synth.slerp(d[4], 0.053);
-    //     if (done[8]) synth.slerp(d[8], 0.053);
-    //     calibratedQuats['right'][7].copy(synth);
-    //     calibDone['right'][7] = true;
-    // })();
 
     DEVICES.forEach(function(dev) {
         const devMap = channelBoneMap[dev] || {};
@@ -696,18 +971,15 @@ function updateTargetQuaternions() {
             const boneName = devMap['ch' + i];
             if (!boneName || !bonesByName[boneName] || !calibDone[dev][i]) continue;
 
+            const bone = bonesByName[boneName];
             let finalDelta = calibratedQuats[dev][i].clone();
 
-            // 层级旋转：检查父骨骼是否也被传感器驱动
-            const bone = bonesByName[boneName];
-            if (bone && bone.parent && bone.parent.isBone) {
-                const parentInfo = boneToChanDev[bone.parent.name];
-                if (parentInfo && calibDone[parentInfo.dev][parentInfo.channel]) {
-                    // childRelative = parentCal⁻¹ × childCal（匹配Blender: q0_rel = q1_inv * q0）
-                    parentCalInv.copy(calibratedQuats[parentInfo.dev][parentInfo.channel]).invert();
-                    childRelative.copy(parentCalInv).multiply(calibratedQuats[dev][i]);
-                    finalDelta = childRelative.clone();
-                }
+            // 调用生产函数查找最近映射祖先
+            const ancestorInfo = findMappedAncestor(boneName);
+
+            if (ancestorInfo) {
+                parentCalInv.copy(calibratedQuats[ancestorInfo.dev][ancestorInfo.channel]).invert();
+                finalDelta.copy(parentCalInv).multiply(calibratedQuats[dev][i]);
             }
 
             if (boneInitQuats[boneName]) {
@@ -726,38 +998,264 @@ function interpolateBones() {
         for (let i = 0; i < TOTAL_CHANNELS; i++) {
             const boneName = devMap['ch' + i];
             if (!boneName || !bonesByName[boneName]) continue;
-            // 校准未完成前不驱动骨骼，防止被拉向 identity
             if (!calibDone[dev][i]) continue;
-            bonesByName[boneName].quaternion.slerp(targetQuats[dev][i], 0.4);
+            const cur = bonesByName[boneName].quaternion;
+            const tgt = targetQuats[dev][i];
+            const angleDiff = 2 * Math.acos(Math.min(1, Math.abs(cur.dot(tgt))));
+            const step = Math.min(1.0, 0.15 + angleDiff * 0.8);
+            cur.slerp(tgt, step);
         }
     });
 }
-
 
 // ==================== 复位手势 ====================
 function resetGesture() {
-    // 重置所有 Madgwick 滤波器和校准状态（双手，匹配Blender重启后重新校准的行为）
-    DEVICES.forEach(function(dev) {
-        for (let i = 0; i < TOTAL_CHANNELS; i++) {
-            filters[dev][i].reset();
-            targetQuats[dev][i].identity();
-            // 重置校准，重新等待CALIB_DELAY帧后捕获
-            calibInvQuats[dev][i].identity();
-            calibDone[dev][i] = false;
-            calibFrameCount[dev][i] = 0;
-            calibratedQuats[dev][i].identity();
-        }
-        lastDataId[dev] = -1;
-    });
-    // 恢复骨骼到初始姿态
+    DEVICES.forEach(function(dev) { resetDeviceState(dev); });
     for (const boneName in boneInitQuats) {
         if (bonesByName[boneName]) {
             bonesByName[boneName].quaternion.copy(boneInitQuats[boneName]);
+            bonesByName[boneName].updateWorldMatrix(true, false);
         }
     }
+    if (currentModel) currentModel.updateWorldMatrix(true, false);
+    console.log('[复位] 所有滤波器、校准、零偏、骨骼姿态已重置');
+}
+document.getElementById('resetGestureBtn').addEventListener('click', resetGesture);
+
+// 四、生产校准函数（可测试）
+function tryCalibrateDeviceFrame(dev, chValid, chStable, captureQuatGetter, nowMs = Date.now()) {
+    if (deviceCalibDone[dev]) return false;
+    if (nowMs < calibrationCaptureAt[dev]) return false;
+    const requiredChannels = [];
+    const devMap = channelBoneMap[dev] || {};
+    for (let i = 0; i < TOTAL_CHANNELS; i++) {
+        if (devMap['ch' + i] && bonesByName[devMap['ch' + i]]) requiredChannels.push(i);
+    }
+    if (requiredChannels.length === 0) return false;
+    for (const i of requiredChannels) {
+        if (!chValid[i]) return false;
+    }
+    for (const i of requiredChannels) {
+        const rq = captureQuatGetter(i);
+        if (!isFinite(rq.w) || !isFinite(rq.x) || !isFinite(rq.y) || !isFinite(rq.z)) return false;
+    }
+    for (let i = 0; i < TOTAL_CHANNELS; i++) {
+        if (!requiredChannels.includes(i)) { calibDone[dev][i] = false; continue; }
+        const rq = captureQuatGetter(i);
+        const sensorQ = new THREE.Quaternion(rq.x, rq.y, rq.z, rq.w);
+        calibInvQuats[dev][i].copy(sensorQ).invert();
+        calibDone[dev][i] = true;
+    }
+    deviceCalibDone[dev] = true;
+    deviceCalibGeneration[dev] = currentDeviceGeneration[dev];
+    return true;
 }
 
-document.getElementById('resetGestureBtn').addEventListener('click', resetGesture);
+// ==================== 七、浏览器自动验证 ====================
+// 在浏览器控制台运行以下任一命令：
+//   window.runMadgwickTests()
+//   window.runBoneHierarchyTests()
+//   window.runCalibrationTests()
+//   window.runAllTests()
+
+function runBoneHierarchyTests() {
+    console.log('===== 骨骼层级单元测试（调用生产函数 findMappedAncestor）=====');
+    const results = [];
+
+    // 真实对象引用（模拟 Three.js Bone）
+    const savedBonesByName = bonesByName;
+    const savedChannelBoneMap = channelBoneMap;
+    const savedBoneToChanDev = boneToChanDev;
+    const savedCalibDone = calibDone;
+    const DEVICES_TEST = ['left', 'right'];
+    const testBones = {};
+    function makeBone(name, parent) {
+        const bone = { name: name, parent: parent, isBone: true };
+        testBones[name] = bone;
+        return bone;
+    }
+    const handR = makeBone('HandR', null);
+    const fingerA1R = makeBone('FingerA1R', handR);
+    const fingerA2R = makeBone('FingerA2R', fingerA1R);
+    const fingerA3R = makeBone('FingerA3R', fingerA2R);
+    makeBone('HandL', null);
+
+    // 模拟生产映射：HandR(ch0), FingerA2R(ch2), FingerA3R(ch3)，FingerA1R 无映射
+    const testMap = {
+        left: {}, right: {
+            'ch0': 'HandR', 'ch2': 'FingerA2R', 'ch3': 'FingerA3R'
+        }
+    };
+
+    // 用测试数据替换生产全局
+    bonesByName = testBones;
+    channelBoneMap = testMap;
+    boneToChanDev = {};
+    DEVICES_TEST.forEach(function(d) {
+        const devMap = testMap[d] || {};
+        for (let i = 0; i < TOTAL_CHANNELS; i++) {
+            const boneName = devMap['ch' + i];
+            if (boneName) boneToChanDev[boneName] = { dev: d, channel: i };
+        }
+    });
+    ['left','right'].forEach(function(d) {
+        for (let i = 0; i < TOTAL_CHANNELS; i++) calibDone[d][i] = !!testMap[d]['ch' + i];
+    });
+
+    function assert(desc, cond) {
+        results.push({ desc: desc, pass: !!cond });
+        console.log((cond ? '  [PASS]' : '  [FAIL]') + ' ' + desc);
+    }
+
+    // 调用生产函数 findMappedAncestor
+    const ancA2 = findMappedAncestor('FingerA2R');
+    assert('FingerA2R 找到 HandR (ch0)', ancA2 !== null && ancA2.dev === 'right' && ancA2.channel === 0);
+
+    const ancA3 = findMappedAncestor('FingerA3R');
+    assert('FingerA3R 找到 FingerA2R (ch2)', ancA3 !== null && ancA3.dev === 'right' && ancA3.channel === 2);
+
+    assert('HandR 无祖先（根骨骼）', findMappedAncestor('HandR') === null);
+    assert('HandL 无祖先（不在任何映射中）', findMappedAncestor('HandL') === null);
+    assert('FingerA1R 无祖先（FingerA1R 不在映射中）', findMappedAncestor('FingerA1R') === null);
+
+    // 反向：把 FingerA2R 标为未校准，应该跳过但仍能找到 HandR
+    calibDone.right[2] = false;
+    const ancA2b = findMappedAncestor('FingerA2R');
+    assert('祖先未校准时仍能找到更上层 HandR', ancA2b !== null && ancA2b.channel === 0);
+    calibDone.right[2] = true;
+
+    // 恢复生产数据
+    bonesByName = savedBonesByName;
+    channelBoneMap = savedChannelBoneMap;
+    boneToChanDev = savedBoneToChanDev;
+    Object.keys(savedCalibDone).forEach(function(d) {
+        for (let i = 0; i < TOTAL_CHANNELS; i++) calibDone[d][i] = savedCalibDone[d][i];
+    });
+
+    const pass = results.filter(function(r) { return r.pass; }).length;
+    const fail = results.filter(function(r) { return !r.pass; }).length;
+    console.log('===== 结果: ' + pass + ' 通过 / ' + fail + ' 失败 =====');
+    return { pass: pass, fail: fail, results: results };
+}
+
+function runMadgwickTests() {
+    console.log('===== Madgwick 数值稳定性测试 =====');
+    const results = [];
+    function assert(desc, cond) {
+        results.push({ desc: desc, pass: !!cond });
+        console.log((cond ? '  [PASS]' : '  [FAIL]') + ' ' + desc);
+    }
+
+    const f = new MadgwickFilter(0.04);
+
+    for (let i = 0; i < 100; i++) f.update(0, 0, 1, 0, 0, 0, 0.1);
+    assert('静止时梯度为零不产生 NaN', f.isValid());
+
+    const before = f.getQuaternion();
+    f.update(NaN, NaN, NaN, NaN, NaN, NaN, 0.1);
+    const after = f.getQuaternion();
+    assert('NaN 输入后保留上一帧', f.isValid() && before.w === after.w && before.x === after.x);
+
+    for (let i = 0; i < 1000; i++) {
+        f.update(0.1*Math.cos(i*0.01), 0.1*Math.sin(i*0.01), 1, 0.1, 0.1, 0.05, 0.1);
+    }
+    assert('长期积分后四元数模长接近 1', Math.abs(f.getNorm() - 1) < 0.01);
+
+    f.update(0.01, 0.02, 1, 0.1, 0.2, 0.05, 0.1);
+    assert('零偏输入后仍保持有效', f.isValid());
+
+    f.update(16, -16, 16, 35, -35, 35, 0.02);
+    assert('有限极端输入后四元数仍有效', f.isValid() && Math.abs(f.getNorm() - 1) < 0.01);
+
+    const pass = results.filter(function(r) { return r.pass; }).length;
+    const fail = results.filter(function(r) { return !r.pass; }).length;
+    console.log('===== 结果: ' + pass + ' 通过 / ' + fail + ' 失败 =====');
+    return { pass: pass, fail: fail, results: results };
+}
+
+function runCalibrationTests() {
+    console.log('===== 校准逻辑测试（调用生产 tryCalibrateDeviceFrame）=====');
+    const results = [];
+
+    const DEV = 'right';
+    function assert(desc, cond) {
+        results.push({ desc: desc, pass: !!cond });
+        console.log((cond ? '  [PASS]' : '  [FAIL]') + ' ' + desc);
+    }
+    function resetState() {
+        for (let i = 0; i < TOTAL_CHANNELS; i++) {
+            filters[DEV][i].reset();
+            targetQuats[DEV][i].identity();
+            calibInvQuats[DEV][i].identity();
+            calibDone[DEV][i] = false;
+            calibStableCount[DEV][i] = 0;
+            calibratedQuats[DEV][i].identity();
+        }
+        deviceCalibDone[DEV] = false;
+        deviceCalibGeneration[DEV] = -1;
+    }
+
+    const goodQ = { w: 1, x: 0, y: 0, z: 0 };
+    const chValid = new Array(TOTAL_CHANNELS).fill(true);
+    const savedCaptureAt = calibrationCaptureAt[DEV];
+
+    // T1: 第 3 秒前不能提前捕获
+    resetState();
+    calibrationCaptureAt[DEV] = 3000;
+    const earlyCaptured = tryCalibrateDeviceFrame(
+        DEV, chValid, new Array(TOTAL_CHANNELS).fill(true), function() { return goodQ; }, 2999
+    );
+    assert('第 3 秒前不捕获关键帧', !earlyCaptured && !deviceCalibDone[DEV]);
+
+    // T2: 到达第 3 秒后直接使用当前帧，不等待稳定帧计数
+    const captured = tryCalibrateDeviceFrame(
+        DEV, chValid, new Array(TOTAL_CHANNELS).fill(false), function() { return goodQ; }, 3000
+    );
+    assert('第 3 秒使用当前姿态完成关键帧校准', captured && deviceCalibDone[DEV]);
+
+    // T3: 捕获后保持锁定，后续帧不能覆盖参考姿态
+    const recaptured = tryCalibrateDeviceFrame(
+        DEV, chValid, new Array(TOTAL_CHANNELS).fill(false), function() { return goodQ; }, 4000
+    );
+    assert('关键帧捕获后保持锁定', !recaptured && deviceCalibDone[DEV]);
+
+    // T4: 倒计时结束时若数据不完整，等待下一帧完整数据
+    resetState();
+    calibrationCaptureAt[DEV] = 3000;
+    const noChannels = new Array(TOTAL_CHANNELS).fill(false);
+    const emptyCaptured = tryCalibrateDeviceFrame(
+        DEV, noChannels, noChannels, function() { return goodQ; }, 3000
+    );
+    assert('无有效通道时不完成整手校准', !emptyCaptured && !deviceCalibDone[DEV]);
+    calibrationCaptureAt[DEV] = savedCaptureAt;
+
+    const pass = results.filter(function(r) { return r.pass; }).length;
+    const fail = results.filter(function(r) { return !r.pass; }).length;
+    console.log('===== 结果: ' + pass + ' 通过 / ' + fail + ' 失败 =====');
+    return { pass: pass, fail: fail, results: results };
+}
+
+function runAllTests() {
+    console.log('================================================================');
+    console.log('                   浏览器自动验证测试');
+    console.log('================================================================');
+    const r1 = runMadgwickTests();
+    console.log('');
+    const r2 = runBoneHierarchyTests();
+    console.log('');
+    const r3 = runCalibrationTests();
+    console.log('================================================================');
+    const total = r1.pass + r2.pass + r3.pass;
+    const totalFail = r1.fail + r2.fail + r3.fail;
+    console.log('总计: ' + total + ' 通过 / ' + totalFail + ' 失败');
+    console.log('================================================================');
+    return { madgwick: r1, bones: r2, calibration: r3 };
+}
+
+window.runMadgwickTests = runMadgwickTests;
+window.runBoneHierarchyTests = runBoneHierarchyTests;
+window.runCalibrationTests = runCalibrationTests;
+window.runAllTests = runAllTests;
 
 // ==================== 渲染循环 ====================
 function onResize() {
@@ -787,7 +1285,6 @@ layui.use(['layer'], function() {
         recordCount = 0;
     }
 
-    // timeStr 可选，传入则使用服务端时间（HH:MM:SS），否则用当前时间
     window.addTranslateRecord = function(gesture, timeStr) {
         var list = document.getElementById('translateList');
         if (recordCount === 0) list.innerHTML = '';
@@ -805,7 +1302,6 @@ layui.use(['layer'], function() {
         resetTranslateList();
     });
 
-    // ========== 实时翻译轮询（ext_cmd 帧 + translated_text 帧） ==========
     var lastExtCmdSeq = 0;
 
     function pollExtCmd() {
@@ -813,26 +1309,19 @@ layui.use(['layer'], function() {
             .then(function(r) { return r.json(); })
             .then(function(res) {
                 if (res.code !== 0 || !res.data || res.data.length === 0) return;
-                // 按 seq 从小到大排序，保证显示顺序正确
                 var items = res.data.slice().sort(function(a, b) {
                     return (a.seq || 0) - (b.seq || 0);
                 });
                 items.forEach(function(item) {
-                    // 过滤语音模块状态播报，不在前端实时翻译区显示
                     if (item.data === 'rock已就绪') {
-                        if ((item.seq || 0) > lastExtCmdSeq) {
-                            lastExtCmdSeq = item.seq;
-                        }
+                        if ((item.seq || 0) > lastExtCmdSeq) lastExtCmdSeq = item.seq;
                         return;
                     }
-                    // translated_text 类型使用本机时间；其他 ext_cmd 沿用服务端时间
                     var timeStr = (item.type === 'translated_text')
                         ? new Date().toLocaleTimeString('zh-CN', {hour12: false})
                         : item.recv_time;
                     window.addTranslateRecord(item.data, timeStr);
-                    if ((item.seq || 0) > lastExtCmdSeq) {
-                        lastExtCmdSeq = item.seq;
-                    }
+                    if ((item.seq || 0) > lastExtCmdSeq) lastExtCmdSeq = item.seq;
                 });
             })
             .catch(function() {});
@@ -840,8 +1329,6 @@ layui.use(['layer'], function() {
 
     setInterval(pollExtCmd, 1000);
     pollExtCmd();
-
-    // 双开发板状态已通过 module script 中的 pollDeviceStatus 更新
 });
 </script>
 {% endblock %}
