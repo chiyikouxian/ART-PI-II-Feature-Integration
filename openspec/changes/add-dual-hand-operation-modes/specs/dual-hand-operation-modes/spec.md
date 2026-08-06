@@ -45,7 +45,8 @@ In manual mode, each ART-Pi2 endpoint SHALL remain locally connected to the acti
 - **THEN** the endpoint SHALL be in manual sleep
 - **AND** the endpoint SHALL keep the active WiFi/TCP command path available
 - **AND** the endpoint SHALL NOT emit IMU stream payloads
-- **AND** the endpoint SHALL read or inspect IMU state at a low-rate standby cadence for local state maintenance
+- **AND** the shared IMU acquisition thread SHALL continue updating sensor state at its normal cadence
+- **AND** the operation-mode worker SHALL NOT run automatic posture detection while the endpoint is in manual sleep
 - **AND** the endpoint SHALL NOT perform automatic special-action wake-up while in manual mode
 
 #### Scenario: ROCK starts manual running
@@ -61,7 +62,7 @@ In manual mode, each ART-Pi2 endpoint SHALL remain locally connected to the acti
 - **AND** the endpoint SHALL enter manual sleep
 
 ### Requirement: Automatic Mode Local Wake And ROCK Confirmation
-In automatic mode, each ART-Pi2 endpoint SHALL keep the active stream silent during automatic standby, run a local coarse special-action detector every 200 ms, and enter running state when its local detector passes 5 consecutive checks; ROCK SHALL then perform stricter second-stage review over the streamed data and coordinate both hands by writing reset, start, stop, or rejection control as needed.
+In automatic mode, each ART-Pi2 endpoint SHALL keep the active stream silent during automatic standby, run a local coarse special-action detector every 200 ms, and enter running state when its local detector passes 5 consecutive checks. In the default `auto_protocol=artpi` ROCK flow, the first available paired samples are treated as an ART-Pi START candidate without a second-stage posture rejection pass. The separate `auto_protocol=rock` flow MAY use the ROCK-side sliding-window checker as its own trigger source.
 
 #### Scenario: Automatic standby checks local special action without active streaming
 - **WHEN** an endpoint is in automatic standby
@@ -74,27 +75,31 @@ In automatic mode, each ART-Pi2 endpoint SHALL keep the active stream silent dur
 - **WHEN** an endpoint in automatic standby detects its local special action
 - **THEN** the endpoint SHALL enter running state
 - **AND** the endpoint SHALL emit IMU stream payloads at the 90 ms running cadence while the active transport is connected
-- **AND** ROCK SHALL determine whether both hands are simultaneously sending and whether the combined gesture is the expected special action
+- **AND** the default `auto_protocol=artpi` ROCK flow SHALL treat available paired samples as a START candidate and send `CMD:START` to both endpoints
 
 #### Scenario: First automatic-mode implementation uses only local sensor data from the same hand
 - **WHEN** the first automatic-mode implementation evaluates the local special action
 - **THEN** it SHALL use only that endpoint's own local sensor channels
 - **AND** it SHALL NOT require live sensor data from the other hand before entering running state
 
-#### Scenario: First automatic-mode implementation treats the special action as a fixed posture using dorsal and finger rules
+#### Scenario: First automatic-mode implementation uses hand-specific posture gates
 - **WHEN** the first automatic-mode implementation evaluates the local special action
-- **THEN** it SHALL treat the special action as a fixed posture made up of dorsal hand posture, finger posture, and low-motion requirements
+- **THEN** both endpoints SHALL evaluate dorsal-hand posture and finger posture
+- **AND** the left-hand endpoint SHALL also enforce the configured low-motion gyroscope requirement
+- **AND** the right-hand endpoint SHALL log gyroscope values above the configured stillness threshold but intentionally bypass that threshold as a blocking gate
 - **AND** it SHALL use configurable compile-time thresholds rather than learned classification
 - **AND** it SHALL require the pose to satisfy 5 consecutive 200 ms checks before entering running state
 
-#### Scenario: First automatic-mode implementation uses a minimum finger-pass threshold
+#### Scenario: First automatic-mode implementation uses per-hand gates and a minimum finger-pass threshold
 - **WHEN** the first automatic-mode implementation evaluates the local special action
-- **THEN** the dorsal hand channel SHALL satisfy its local posture window
-- **AND** the local stillness rule SHALL satisfy its gyroscope threshold
+- **THEN** the dorsal hand channel SHALL satisfy its local posture window on both endpoints
+- **AND** the left-hand local stillness rule SHALL satisfy its gyroscope threshold
+- **AND** the right-hand local stillness result SHALL be treated as passing regardless of whether its diagnostic threshold is exceeded
 - **AND** the endpoint SHALL count how many of the 10 finger MPU6050 channels satisfy their configured posture windows
 - **AND** the endpoint SHALL accept the finger gate when at least the configured minimum count passes
 - **AND** the current firmware baseline SHALL use a minimum finger-pass threshold of 6 out of 10 channels
-- **AND** the endpoint SHALL clear the consecutive-hit counter whenever the dorsal gate, finger-count gate, or stillness gate fails
+- **AND** both endpoints SHALL clear the consecutive-hit counter whenever the dorsal or finger-count gate fails
+- **AND** the left-hand endpoint SHALL additionally clear the counter when its stillness gate fails
 
 #### Scenario: Each hand enters automatic running independently
 - **WHEN** the left-hand endpoint detects its local hand-down pose but the right-hand endpoint does not, or vice versa
@@ -106,11 +111,18 @@ In automatic mode, each ART-Pi2 endpoint SHALL keep the active stream silent dur
 - **THEN** that endpoint SHALL be capable of accumulating 5 consecutive local hits and entering `RUNNING` from `AUTO_STANDBY` using only its own local target-pose data
 - **AND** this local verification SHALL NOT by itself imply that ROCK-side second-stage acceptance / rejection has been completed
 
-#### Scenario: ROCK performs stricter second-stage window review
-- **WHEN** one or both endpoints have entered running state through local coarse detection and are streaming IMU data
-- **THEN** ROCK SHALL review a multi-frame sliding window rather than a single frame
-- **AND** ROCK SHALL use the same semantic rule family with tighter thresholds
-- **AND** ROCK SHALL include fluctuation or variance checks to reject unstable poses that only barely satisfy the local coarse detector
+#### Scenario: Default ART-Pi automatic protocol starts without second-stage rejection
+- **WHEN** the orchestrator runs with `auto_protocol=artpi` and receives paired samples after local ART-Pi wake-up
+- **THEN** ROCK SHALL treat the presence of those samples as a START candidate
+- **AND** the default path SHALL NOT invoke `SpecialActionChecker` as a post-local-wake acceptance or rejection gate
+- **AND** the default path SHALL NOT automatically send a rejection command when the optional tighter posture rule would fail
+
+#### Scenario: Optional ROCK automatic protocol uses the sliding-window checker
+- **WHEN** the orchestrator runs with `auto_protocol=rock`
+- **THEN** `SpecialActionChecker` SHALL review a multi-frame window
+- **AND** it SHALL use ART-Pi-provided posture templates with shrunken numeric windows
+- **AND** it SHALL apply pass-ratio and dorsal/finger variance limits before using the ROCK-side result as a trigger
+- **AND** this ROCK-driven trigger mode SHALL remain distinct from the default ART-Pi-local-wake protocol
 
 #### Scenario: ROCK resets frame sequence without stopping automatic running
 - **WHEN** ROCK writes the exact UTF-8 text command `CMD:RESET_SEQ` on the current active command path while the endpoint is in running state
@@ -123,7 +135,7 @@ In automatic mode, each ART-Pi2 endpoint SHALL keep the active stream silent dur
 - **AND** the endpoint SHALL remain in running state
 - **AND** the endpoint SHALL continue IMU stream transmission
 
-#### Scenario: ROCK stops automatic running after the second special-action detection
+#### Scenario: ROCK explicitly stops automatic running
 - **WHEN** ROCK writes the exact UTF-8 text command `CMD:STOP` on the current active command path while the endpoint is in automatic mode
 - **THEN** the endpoint SHALL stop IMU stream output
 - **AND** the endpoint SHALL reset its active stream `frame_seq` counter to 0
@@ -150,8 +162,8 @@ In automatic mode, each ART-Pi2 endpoint SHALL keep the active stream silent dur
 - **AND** after the cooldown it SHALL return to automatic standby
 - **AND** it SHALL clear the local automatic hit counter before new detection begins
 
-#### Scenario: ROCK rejection forces a clean local retry
-- **WHEN** ROCK determines from its second-stage window review that the streamed session is not a valid special action
+#### Scenario: Explicit stop returns the endpoint to a clean automatic retry state
+- **WHEN** ROCK writes `CMD:STOP` after an automatic-mode collection attempt
 - **THEN** the endpoint SHALL return to automatic standby
 - **AND** the endpoint SHALL clear the automatic local consecutive-hit counter
 - **AND** the endpoint SHALL reset the active WiFi stream `frame_seq` to 0
@@ -165,10 +177,11 @@ Operation-mode commands SHALL use the exact `CMD:` or `MODE:` prefixes and SHALL
 - **THEN** ROCK SHALL write one of `CMD:RESET_SEQ`, `CMD:START`, `CMD:STOP`, `MODE:MANUAL`, or `MODE:AUTO` on the current active command path
 - **AND** the endpoint SHALL treat the command as operation control rather than translated speech text
 
-#### Scenario: Non-command text remains available for existing translated-text behavior
-- **WHEN** the left-hand endpoint receives payload that does not begin with the exact `CMD:` prefix
-- **THEN** the payload SHALL remain available to the existing translated-text handling path
-- **AND** operation-mode command handling SHALL NOT reinterpret non-command translated text as a mode transition
+#### Scenario: SAY-prefixed text remains available for translated-text behavior
+- **WHEN** the left-hand endpoint receives a complete line beginning with `SAY:` or `say:`
+- **THEN** the payload after that prefix SHALL remain available to the existing translated-text handling path
+- **AND** arbitrary unprefixed text SHALL be logged as an unknown command and ignored
+- **AND** operation-mode command handling SHALL NOT reinterpret SAY text as a mode transition
 
 ### Requirement: Direct Hand-To-Hand Communication Exclusion
 The dual-hand operation modes SHALL NOT require direct communication between the left-hand ART-Pi2 endpoint and the right-hand ART-Pi2 endpoint.

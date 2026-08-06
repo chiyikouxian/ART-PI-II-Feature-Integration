@@ -1,7 +1,7 @@
 # pc-endpoint-auto-discovery Specification
 
 ## Purpose
-TBD - created by archiving change add-pc-endpoint-auto-discovery. Update Purpose after archive.
+Define how the PC advertises its current TCP endpoint, how each ART-Pi2 validates and publishes that endpoint atomically, and how PC-facing TCP clients reconnect without affecting the independent ROCK links.
 ## Requirements
 ### Requirement: PC Discovery Broadcast
 The PC frontend SHALL advertise a versioned discovery packet on UDP port `9108` after initiating the TCP listener on port `9109`, using limited broadcast, hotspot-directed broadcast, and a `/24` unicast fallback.
@@ -85,4 +85,3 @@ PC endpoint discovery MUST NOT modify ROCK server addresses, ports, frame sequen
 #### Scenario: PC endpoint changes
 - **WHEN** discovery updates the PC endpoint and the PC TCP client reconnects
 - **THEN** ROCK traffic on ports `9101` and `9102` continues under its existing configuration and lifecycle
-

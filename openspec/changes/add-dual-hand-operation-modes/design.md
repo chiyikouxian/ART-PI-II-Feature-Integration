@@ -1,10 +1,10 @@
 ## Context
 The current firmware already supports manual mode state control through local button switching and ROCK text commands. The next planned stage is automatic mode wake-up. The user has now constrained the first automatic implementation:
 
-- Trigger action: both products use a fixed "special action" that is physically characterized by hand-down posture, fist posture, and long-duration stillness.
+- Trigger action: both products use a fixed "special action" characterized by hand-down and fist posture. The left-hand local detector also enforces stillness; the right-hand detector intentionally keeps its stillness comparison diagnostic-only and does not block wake-up on that result.
 - Detection scope: each hand decides independently whether it should enter `RUNNING`.
-- Combined dual-hand semantics: ROCK decides whether both hands are simultaneously in the expected action and whether the streaming session should be accepted or rejected.
-- Exit path: first version exits automatic running on explicit ROCK control, and a ROCK rejection must return the endpoint to standby.
+- Combined dual-hand semantics: in the default `auto_protocol=artpi` flow, ROCK treats the first available paired samples as the START candidate without a second-stage posture acceptance/rejection pass. The separate `auto_protocol=rock` flow uses the ROCK sliding-window checker as its own trigger source.
+- Exit path: the current implementation exits automatic running on explicit `CMD:STOP`, which returns the endpoint to standby and resets the active session state.
 - Detection cadence: local coarse detection runs every 200 ms.
 - Runtime transport: the current effective transport is WiFi/TCP. BLE code remains in the repository, but BLE runtime init and BLE notify are intentionally disabled because of coexistence conflicts with WiFi in the current stage.
 
@@ -13,7 +13,7 @@ The codebase already exposes all 11 local IMU channels through `mpu_get_channel_
 ## Goals / Non-Goals
 - Goals:
   - Add a deterministic first-version automatic wake path that is fully rule-based and tunable on hardware.
-  - Use the same semantic rule family on ART-Pi and ROCK, with ART-Pi acting as a coarse gate and ROCK acting as a stricter reviewer.
+  - Document the two implemented automatic protocols separately: ART-Pi local wake as the default source, and the optional ROCK sliding-window checker as an alternative trigger source.
   - Keep the state transition model compatible with current manual-mode behavior and current ROCK command ownership.
   - Align the specification with the current code reality that WiFi/TCP is the active streaming and command transport.
 - Non-Goals:
@@ -41,11 +41,11 @@ The codebase already exposes all 11 local IMU channels through `mpu_get_channel_
     - The special action is no longer treated as only a dorsal orientation test.
     - Using local finger IMUs tightens the trigger meaningfully before streaming begins.
 
-- Decision: The current local coarse detector requires `dorsal + stillness + minimum finger-pass count`, not all finger channels.
+- Decision: The current local coarse detector requires `dorsal + minimum finger-pass count`; the left hand additionally requires stillness, while the right hand intentionally bypasses stillness as a blocking gate.
   - Why:
     - Hardware measurements showed that requiring all 10 finger MPU6050 channels to pass simultaneously was too brittle for the current wearable mounting spread.
-    - The current firmware uses `AUTO_FINGER_MIN_PASS = 6`, meaning at least 6 of the 10 finger channels must satisfy their local windows while the dorsal channel and stillness gate also pass.
-    - This keeps the ART-Pi rule intentionally loose enough to start streaming, while ROCK remains responsible for stricter second-stage rejection.
+    - The current firmware uses `AUTO_FINGER_MIN_PASS = 6`, meaning at least 6 of the 10 finger channels must satisfy their local windows while the dorsal channel passes.
+    - The left-hand gyroscope threshold remains part of the pass condition. The right-hand code logs values above its configured threshold but deliberately forces the stillness result to pass, as confirmed by the project owner.
 
 - Decision: Keep detection in `operation_mode` as a dedicated periodic standby worker.
   - Why:
@@ -85,17 +85,16 @@ The codebase already exposes all 11 local IMU channels through `mpu_get_channel_
     - Tunable constants allow quick iteration without redesigning the algorithm.
     - The current firmware branch extends this with non-persistent runtime refresh through a local calibration thread and re-sent `MODEL:*` metadata.
 
-- Decision: ROCK performs second-stage review using the same rule family with stricter thresholds, multi-frame windowing, and fluctuation checks.
+- Decision: ROCK exposes two distinct automatic protocols rather than an unconditional two-stage review pipeline.
   - Why:
-    - ART-Pi must not miss the gesture, so its local thresholds should be looser.
-    - ROCK has more compute and can review 20-30 frames, per-field stability, and waveform fluctuation more safely.
-    - This creates a clean two-stage gate without introducing AI.
+    - `auto_protocol=artpi` is the default and directly treats available paired samples after local wake-up as the START candidate.
+    - `auto_protocol=rock` runs `SpecialActionChecker` over a multi-frame window and uses a passing window as its own START trigger.
+    - The current code does not invoke `SpecialActionChecker` as a post-local-wake rejection gate in the default ART-Pi protocol.
 
-- Decision: A ROCK rejection clears both the local trigger hit counter and the active stream frame sequence.
+- Decision: Explicit `CMD:STOP` clears both the local trigger hit counter and the active stream frame sequence.
   - Why:
-    - Clearing only the hit counter would leave stream identity ambiguous across retries.
-    - Clearing only the frame sequence would still allow immediate re-trigger if the local coarse detector remained nearly satisfied.
-    - Clearing both gives an explicit session boundary and avoids infinite reject/restart loops.
+    - Clearing both gives an explicit session boundary before the endpoint returns to standby.
+    - The default ART-Pi protocol does not currently generate an automatic posture-rejection command.
 
 ## Detection Algorithm (First Version)
 ### ART-Pi local coarse detector
@@ -106,13 +105,15 @@ The first version should evaluate the following in `AUTO_STANDBY` every 200 ms:
 3. Check whether the dorsal hand posture lies inside the configurable "hand-down" orientation window.
 4. Check whether the local finger posture lies inside configurable "fist/closed" windows.
 5. Count how many finger channels pass their local windows and require at least the configured minimum pass count.
-6. Check whether required gyroscope values remain below local stillness thresholds.
+6. On the left hand, require the configured gyroscope stillness bounds. On the right hand, log threshold exceedance for diagnostics but intentionally treat the stillness result as passing.
 7. If the sample matches, increment a consecutive-hit counter up to a small cap.
 8. If the sample fails, clear the consecutive-hit counter.
 9. Enter `RUNNING` only when the counter reaches `AUTO_WAKE_CONSECUTIVE_HITS = 5`.
 
-### ROCK second-stage reviewer
-Once ART-Pi starts streaming, ROCK should:
+### ROCK automatic protocol branches
+In the default `auto_protocol=artpi` branch, once ART-Pi starts streaming and paired samples are available, ROCK uses that pair as the START candidate and sends `CMD:START` to both endpoints. It does not run the sliding-window checker as a post-local-wake acceptance/rejection stage.
+
+In the separate `auto_protocol=rock` branch, ROCK uses `SpecialActionChecker` as its own trigger source:
 
 1. Buffer a sliding window of roughly 20-30 frames for each hand.
 2. Re-evaluate the same semantic rule family:
@@ -122,8 +123,9 @@ Once ART-Pi starts streaming, ROCK should:
    - left/right symmetry across the window
 3. Tighten the accepted numeric windows relative to ART-Pi.
 4. Compute fluctuation metrics such as variance or spread inside the window to reject unstable "almost correct" poses.
-5. Accept the session only if the whole window is stable enough.
-6. If rejected, send control that forces ART-Pi back to standby and resets both local hit count and active stream frame sequence state.
+5. Produce a START candidate only if the whole window is stable enough.
+
+Adding a post-local-wake checker that automatically rejects the default ART-Pi flow remains deferred work and is not part of current behavior.
 
 ## Tunable Constants
 The first implementation should define constants similar to:
@@ -143,11 +145,11 @@ The exact numeric windows remain tunable and may continue to change with hardwar
 1. Keep `operation_mode` as the single local state owner for standby versus running.
 2. Add the 200 ms standby detection worker and state-transition plumbing with conservative local thresholds.
 3. Add debug logging / status commands that expose dorsal and finger raw data while in automatic standby.
-4. Add an explicit WiFi sender `frame_seq` reset entry point so command and rejection paths can reset the active stream consistently.
+4. Add an explicit WiFi sender `frame_seq` reset entry point so command-driven state transitions can reset the active stream consistently.
 5. Capture target-pose samples for left and right hands separately and tune local coarse thresholds until each hand can independently enter `RUNNING`.
 6. Capture broader non-target-pose samples and tighten thresholds only as much as needed to reduce false wake-up risk without breaking local wake-up.
-7. Implement ROCK sliding-window review using tighter thresholds and variance checks.
-8. Re-test independent hand wake-up, then dual-hand ROCK acceptance / rejection behavior.
+7. Keep the existing ROCK-protocol sliding-window trigger covered independently from the default ART-Pi protocol.
+8. If a post-local-wake acceptance/rejection stage is added later, specify its command and state-transition contract before enabling it in the default flow.
 9. Validate the new `WAITING_STOP -> SAY -> cooldown -> AUTO_STANDBY` path and the remote `MODE:*` command path against the live WiFi/TCP session.
 
 ## Risks / Trade-offs
@@ -156,22 +158,16 @@ The exact numeric windows remain tunable and may continue to change with hardwar
     - Keep thresholds configurable.
     - Add temporary logs during standby tuning.
 
-- Risk: False wake-up from ordinary static poses if ART-Pi coarse thresholds are too loose.
+- Risk: False wake-up from ordinary static poses if ART-Pi coarse thresholds are too loose, especially because the right-hand stillness failure is intentionally bypassed.
   - Mitigation:
     - Require 5 consecutive hits at 200 ms.
     - Include both hand posture and finger posture gates.
-    - Let ROCK reject unstable or weak matches.
+    - Capture broader non-target-pose data and tune the implemented local gates without changing the intentional right-hand bypass.
 
 - Risk: 200 ms cadence increases local polling load.
   - Mitigation:
     - Keep the local rule lightweight and deterministic.
     - Revisit only if measured CPU or power cost becomes problematic.
-
-- Risk: ROCK rejection may create rapid retry loops.
-  - Mitigation:
-    - Force local return to standby.
-    - Clear both local hit count and active stream frame sequence.
-    - Require a fresh 5-hit run before streaming restarts.
 
 - Risk: BLE code comments and historical interfaces may mislead future work while BLE runtime remains disabled.
   - Mitigation:
@@ -181,5 +177,5 @@ The exact numeric windows remain tunable and may continue to change with hardwar
 ## Open Questions
 - The current left-hand and right-hand numeric windows are still considered field-tunable and need broader non-target-pose coverage before being treated as stable production thresholds.
 - The current runtime calibration thread updates thresholds only in RAM and does not persist them across reset.
-- ROCK-side second-stage acceptance / rejection logic is still pending, so the current local coarse detector remains intentionally permissive.
+- A ROCK-side post-local-wake acceptance/rejection stage for the default `auto_protocol=artpi` flow is not implemented. The existing `auto_protocol=rock` sliding-window checker is an alternative trigger path, not that deferred reviewer.
 - If BLE/WiFi coexistence is solved later, the operation-mode contract will need a follow-up change that reintroduces BLE as an active runtime path rather than only a retained code path.

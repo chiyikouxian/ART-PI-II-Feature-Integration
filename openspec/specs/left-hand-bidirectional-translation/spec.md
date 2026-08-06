@@ -17,7 +17,7 @@ The current firmware SHALL keep the BLE IMU service implementation available in 
 - **THEN** the BLE advertising, GATT service, text downlink, and IMU notify behavior defined by this specification applies
 
 ### Requirement: Left-Hand BLE IMU Uplink Payload Contract
-The system SHALL expose the left-hand BLE IMU uplink payload as a fixed-order UTF-8 CSV text frame delivered through the existing BLE GATT Notify path, using Service UUID `A74D0001-B4E7-4C5F-9D2A-F163E80ACB00` and IMU Notify Characteristic UUID `A74D0002-B4E7-4C5F-9D2A-F163E80ACB00`. The left-hand firmware SHALL advertise as `ART-Pi2-IMU-L`, use BLE 5.0, and identify itself from the right-hand firmware by BLE device name, MAC address, and the payload `hand_type` value while sharing the same GATT UUID set used by the right-hand firmware. The left-hand MAC address SHALL be `C0:4E:51:05:34:33`, and the notify cadence SHALL be 90 ms per frame. The payload SHALL carry raw unfiltered IMU sample values and include a per-hand frame sequence number. Code-level UUID byte arrays are written with LSB-first ordering; the canonical UUID display form is `A74D0001-B4E7-4C5F-9D2A-F163E80ACB00`.
+The system SHALL expose the left-hand BLE IMU uplink payload as a fixed-order UTF-8 CSV text frame delivered through the existing NimBLE GATT Notify path, using Service UUID `A74D0001-B4E7-4C5F-9D2A-F163E80ACB00` and IMU Notify Characteristic UUID `A74D0002-B4E7-4C5F-9D2A-F163E80ACB00`. The left-hand firmware SHALL use connectable undirected legacy advertising with device name `ART-Pi2-IMU-L`, and SHALL identify itself from the right-hand firmware by BLE device name, controller-provided BLE address, and the payload `hand_type` value while sharing the same GATT UUID set used by the right-hand firmware. The advertising address type SHALL be inferred by NimBLE from the CYW43438 controller, the effective address SHALL be read from the controller and logged after host synchronization, and no fixed BLE address SHALL be guaranteed by the firmware contract. The notify cadence SHALL be 90 ms per frame. The payload SHALL carry raw unfiltered IMU sample values and include a per-hand frame sequence number. Code-level UUID byte arrays are written with LSB-first ordering; the canonical UUID display form is `A74D0001-B4E7-4C5F-9D2A-F163E80ACB00`.
 
 #### Scenario: A normal left-hand IMU notify frame preserves fixed field order and count with frame sequence
 - **WHEN** the left-hand endpoint emits one IMU uplink payload through the BLE notify characteristic
@@ -41,9 +41,16 @@ The system SHALL expose the left-hand BLE IMU uplink payload as a fixed-order UT
 - **WHEN** the left-hand firmware and right-hand firmware expose their BLE IMU uplink services
 - **THEN** both firmware images use the same GATT UUID set for Service, Notify, Channel, and Text characteristics
 - **AND** the left-hand firmware exposes BLE device name `ART-Pi2-IMU-L`
-- **AND** the left-hand firmware exposes MAC address `C0:4E:51:05:34:33`
+- **AND** the left-hand firmware infers its advertising address type from the CYW43438 controller and logs the controller-provided BLE address after NimBLE host synchronization
 - **AND** the left-hand payload identifies the source hand by emitting `hand_type` as `left`
-- **AND** the right-hand firmware is distinguished from the left-hand firmware by BLE device name, MAC address, and `hand_type` value rather than by different GATT UUIDs
+- **AND** the right-hand firmware is distinguished from the left-hand firmware by BLE device name, controller-provided BLE address, and `hand_type` value rather than by different GATT UUIDs
+- **AND** neither endpoint relies on a hardcoded BLE address in this contract
+
+#### Scenario: BLE uses the implemented legacy advertising path
+- **WHEN** explicit BLE initialization completes and the NimBLE host synchronizes with the CYW43438 controller
+- **THEN** the endpoint SHALL start connectable undirected general-discoverable advertising through `ble_gap_adv_start`
+- **AND** the configured advertising interval SHALL range from 200 ms to 500 ms
+- **AND** this contract SHALL NOT claim use of extended advertising or another BLE 5-specific feature that the current implementation does not configure
 
 #### Scenario: The IMU uplink uses notify-only frame delivery at a fixed cadence
 - **WHEN** the left-hand endpoint delivers IMU uplink payloads over BLE
@@ -79,7 +86,8 @@ The system SHALL expose the left-hand BLE IMU uplink payload as a fixed-order UT
 - **THEN** each sample value is emitted as a signed decimal integer representing the raw unfiltered sensor reading
 - **AND** the BLE payload path does not apply low-pass filtering or gyroscope bias correction to the transmitted values
 - **AND** the raw integer semantics remain aligned with the `data_start` serial output format
-- **AND** the distinction from TCP uplink is that TCP continues to transmit filtered and bias-corrected values while BLE transmits raw values
+- **AND** the PC-facing JSON TCP uplink continues to use the processed values returned by `mpu_get_channel_data`, including the configured filtering and gyroscope bias correction
+- **AND** the ROCK-facing WiFi/TCP CSV uplink and the BLE Notify CSV uplink both use raw values returned by `mpu_get_channel_raw_data`
 
 ### Requirement: Left-Hand BLE Disconnect Recovery
 The left-hand endpoint SHALL automatically resume advertising after a BLE disconnection so that ROCK can reconnect without requiring a device restart.

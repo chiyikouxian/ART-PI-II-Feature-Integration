@@ -21,9 +21,9 @@ Define the current WiFi/TCP uplink and control contract used by the ART-Pi2 left
 > `OP_STATE_RUNNING`, `OP_STATE_AUTO_STANDBY`, `OP_STATE_MANUAL_SLEEP`, and the
 > `CMD:*` / `MODE:*` control grammar. The capability that fully defines those operation
 > states (`add-dual-hand-operation-modes`) is **still an active change** with
-> 5 of 31 tasks remaining (manual-mode full hardware acceptance, broad negative-sample
-> collection, ROCK second-stage reviewer, end-to-end dual-hand acceptance, and the
-> final strict-validation re-run). Treat the SHALL semantics below as the intended
+> 3 of 31 tasks remaining (broad negative-sample collection, integration of the optional
+> ROCK checker as a post-local-wake reviewer, and end-to-end reviewer acceptance).
+> Treat the SHALL semantics below as the intended
 > deployed contract, not as a verified current behaviour, until that change is archived.
 > See `openspec/changes/add-dual-hand-operation-modes/tasks.md` for the live task list.
 
@@ -77,7 +77,7 @@ The WiFi/TCP CSV uplink SHALL be gated by the same operation-mode running state 
 - **THEN** the IMU WiFi sender transmits one CSV frame approximately every 90 ms while the TCP connection is healthy
 
 #### Scenario: Non-running states keep the WiFi link connected but silent
-- **WHEN** the local endpoint is in `OP_STATE_AUTO_STANDBY` or `OP_STATE_MANUAL_SLEEP`
+- **WHEN** the local endpoint is in `OP_STATE_AUTO_STANDBY`, `OP_STATE_MANUAL_SLEEP`, or `OP_STATE_WAITING_STOP`
 - **THEN** the IMU WiFi sender keeps its thread and TCP session available
 - **AND** it does not emit IMU CSV frames until the state returns to running
 
@@ -85,12 +85,12 @@ The WiFi/TCP CSV uplink SHALL be gated by the same operation-mode running state 
 Each ART-Pi2 endpoint SHALL accept WiFi/TCP downlink command text from ROCK and apply the same operation control words used by the current firmware state machine.
 
 #### Scenario: WiFi command stream accepts operation-mode control words
-- **WHEN** the endpoint receives TCP text containing `CMD:RESET_SEQ`, `CMD:START`, or `CMD:STOP`
+- **WHEN** the endpoint receives a complete trimmed TCP line exactly equal to `CMD:RESET_SEQ`, `CMD:START`, or `CMD:STOP`
 - **THEN** it forwards the recognized command to the existing operation-mode command handler
 - **AND** the resulting state transitions and frame sequence reset behavior match the local firmware operation-mode implementation
 
 #### Scenario: WiFi command stream accepts remote mode-selection words
-- **WHEN** the endpoint receives TCP text containing `MODE:MANUAL` or `MODE:AUTO`
+- **WHEN** the endpoint receives a complete trimmed TCP line exactly equal to `MODE:MANUAL` or `MODE:AUTO`
 - **THEN** it forwards the recognized command to the existing operation-mode command handler
 - **AND** the resulting mode and standby-state transitions match the local firmware operation-mode implementation
 
@@ -121,8 +121,14 @@ Each ART-Pi2 endpoint SHALL be able to send lightweight non-CSV auxiliary text m
 ### Requirement: WiFi Uplink Reconnect Handling
 The IMU WiFi sender SHALL reconnect automatically when the ROCK TCP session is unavailable.
 
-#### Scenario: Connection failure triggers retry loop
-- **WHEN** the IMU WiFi sender cannot create or connect its TCP socket, or loses the connection while sending
-- **THEN** it closes the failed socket
+#### Scenario: Initial connection failure triggers delayed retry
+- **WHEN** the IMU WiFi sender cannot create or connect its TCP socket
+- **THEN** it closes the failed socket when one exists
 - **AND** it waits approximately 3 seconds before retrying
 - **AND** it continues retrying until the link is restored or the sender is stopped
+
+#### Scenario: Established session failure triggers immediate reconnect attempt
+- **WHEN** an established ROCK session reports a send short-write, send error, non-timeout receive error, or peer loss detected by the next send
+- **THEN** the sender closes the failed socket
+- **AND** it immediately returns to the outer socket/connect loop without an explicit 3-second delay
+- **AND** a subsequent failed `connect()` attempt uses the normal 3-second retry delay

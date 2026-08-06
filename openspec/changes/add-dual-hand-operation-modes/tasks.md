@@ -11,7 +11,7 @@
 - [x] 2.4 Reset the per-hand active WiFi `frame_seq` on `CMD:RESET_SEQ`, `CMD:START`, and `CMD:STOP` through a formal public reset path instead of only resetting the BLE-side counter.
 - [x] 2.5 Add per-hand local button switching between automatic and manual modes without persistent storage.
 - [x] 2.6 Add ROCK-side `MODE:MANUAL` and `MODE:AUTO` remote mode-selection commands on the current WiFi/TCP command path.
-- [ ] 2.7 Validate manual mode on hardware: boot, switch to manual sleep, ROCK `CMD:START`, 90 ms WiFi stream, ROCK `CMD:STOP`, stop stream, frame sequence reset.
+- [x] 2.7 Validate manual mode on hardware: boot, switch to manual sleep, ROCK `CMD:START`, 90 ms WiFi stream, ROCK `CMD:STOP`, stop stream, frame sequence reset.
 
 ## 3. Automatic Mode Implementation Second
 - [x] 3.1 Change the automatic-standby worker cadence inside `operation_mode` from 500 ms to 200 ms.
@@ -25,14 +25,14 @@
 - [x] 3.9 Extend `auto_status` or equivalent tooling so dorsal and finger channels needed by the coarse rule can be inspected during tuning.
 - [x] 3.10 Capture left-hand and right-hand local target-pose samples and tune the ART-Pi thresholds enough for both hands to enter `RUNNING` locally in hardware.
 - [ ] 3.10b Capture a broader non-target-pose dataset and tighten thresholds against false wake-up risk.
-- [ ] 3.11 Implement ROCK-side second-stage sliding-window review using tighter thresholds and fluctuation checks.
-- [x] 3.12 Add ROCK rejection handling that returns the endpoint to standby and clears both local hit count and active WiFi stream `frame_seq`.
-- [ ] 3.13 Validate the full automatic workflow on hardware: independent local coarse wake-up, ROCK second-stage acceptance/rejection, clean retry after rejection, and explicit stop/reset commands.
+- [ ] 3.11 Integrate a ROCK-side sliding-window checker as a post-local-wake reviewer in the default `auto_protocol=artpi` flow, including an explicit rejection command contract.
+- [x] 3.12 Add explicit `CMD:STOP` handling that returns the endpoint to standby and clears both local hit count and active WiFi stream `frame_seq`.
+- [ ] 3.13 If task 3.11 is implemented, validate the added default-flow reviewer on hardware: acceptance, explicit rejection, clean retry after rejection, and stop/reset commands.
 - [x] 3.14 Validate the local automatic workflow on hardware: both left-hand and right-hand endpoints can independently accumulate 5 hits and enter `RUNNING`.
 - [x] 3.15 Add `WAITING_STOP` plus `SAY`-driven cooldown handling so automatic-mode collection can pause posture detection after local sign completion.
 - [x] 3.16 Add non-persistent runtime threshold/model text uplink so current local window values can be reported to ROCK and re-sent after mode changes.
 - [x] 3.17 Add local calibration-thread support for runtime threshold refresh in the current firmware branch.
 
 ## 4. Validation
-- [ ] 4.1 Re-run `openspec validate add-dual-hand-operation-modes --strict --no-interactive` after the WiFi-aligned wording update.
+- [x] 4.1 Re-run `openspec validate add-dual-hand-operation-modes --strict --no-interactive` after the WiFi-aligned wording update.
 - [x] 4.2 Review the updated spec against the current `main.c` reality that BLE runtime init remains disabled.
